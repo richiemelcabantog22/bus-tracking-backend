@@ -20,6 +20,36 @@ const io = new Server(server, {
 
 // --- AI CROWD PREDICTION ENGINE (Simple ML-based logic) --- //
 
+
+let buses = [
+  { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
+  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
+];
+
+app.get("/", (req, res) => {
+  res.send("Bus Tracking Backend is running!");
+});
+
+app.get("/api/buses", (req, res) => {
+  res.json(buses);
+});
+
+app.post("/api/buses/:id/update", (req, res) => {
+  const { id } = req.params;
+  const { lat, lng, passengers } = req.body;
+
+  const bus = buses.find((b) => b.id === id);
+  if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+
+  bus.lat = lat;
+  bus.lng = lng;
+  bus.passengers = passengers;
+
+  io.emit("buses_update", buses);
+
+  res.json({ ok: true, bus });
+});
+
 function predictPassengers(bus) {
   const current = bus.passengers;
 
@@ -55,37 +85,6 @@ app.get("/api/buses", (req, res) => {
   res.json(buses);
 });
 
-let buses = [
-  { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
-  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
-];
-
-app.get("/", (req, res) => {
-  res.send("Bus Tracking Backend is running!");
-});
-
-app.get("/api/buses", (req, res) => {
-  res.json(buses);
-});
-
-app.post("/api/buses/:id/update", (req, res) => {
-  const { id } = req.params;
-  const { lat, lng, passengers } = req.body;
-
-  const bus = buses.find((b) => b.id === id);
-  if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
-
-  bus.lat = lat;
-  bus.lng = lng;
-  bus.passengers = passengers;
-
-  io.emit("buses_update", buses);
-
-  res.json({ ok: true, bus });
-});
-
-
-
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
   socket.emit("buses_update", buses);
@@ -94,6 +93,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
