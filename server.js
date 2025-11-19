@@ -14,104 +14,104 @@ const io = new Server(server, {
   cors: { origin: "*" },
 });
 
-// ------------------------------
-// 🚍 BUS DATABASE (in-memory)
-// ------------------------------
+// ---------------------------
+// DATABASE (local memory)
+// ---------------------------
 let buses = [
-  { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15, predicted: 0 },
-  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20, predicted: 0 },
+  { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
+  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
 
-// Used to detect anomalies
-let lastPositions = {};  // track movement
-let lastUpdated = {};    // track time
-
-// ------------------------------
-// 🧠 AI — Passenger Prediction
-// ------------------------------
+// ---------------------------
+// AI PASSENGER PREDICTION
+// ---------------------------
 function predictPassengers(bus) {
   const current = bus.passengers;
-  const hour = new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "Asia/Manila" });
+
+  // Philippine time
+  const hour = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila", hour: "numeric", hour12: false });
 
   let rushFactor = 1.0;
 
-  if (hour >= 6 && hour <= 9) rushFactor = 1.35;   // morning rush
-  if (hour >= 17 && hour <= 20) rushFactor = 1.50; // evening rush
+  // Rush-hour time model
+  if (hour >= 6 && hour <= 9) rushFactor = 1.35;
+  if (hour >= 17 && hour <= 20) rushFactor = 1.50;
 
+  // Location-based terminal congestion boost
   const nearTerminal =
-    bus.lat >= 14.410 && bus.lat <= 14.420 &&
-    bus.lng >= 121.035 && bus.lng <= 121.048;
+    bus.lat >= 14.410 &&
+    bus.lat <= 14.420 &&
+    bus.lng >= 121.035 &&
+    bus.lng <= 121.048;
 
   const terminalBoost = nearTerminal ? 1.25 : 1.0;
 
+  // Predict for the next 10 minutes
   const prediction = Math.round(current * rushFactor * terminalBoost);
 
   return Math.min(prediction, 40); // max capacity
 }
 
-// ------------------------------
-// 🚨 AI – ANOMALY DETECTION
-// ------------------------------
-
+// ---------------------------
+// AI ANOMALY DETECTION ENGINE
+// ---------------------------
 function detectAnomalies(bus) {
   const anomalies = [];
 
-  // Overcrowded detection (> 85% of capacity)
-  if (bus.passengers >= 34) {
-    anomalies.push({
-      type: "overcrowded",
-      message: `${bus.id} is overcrowded (${bus.passengers}/40).`,
-    });
+  // 1️⃣ Overcrowding
+  if (bus.passengers >= 38) {
+    anomalies.push("⚠️ Overcrowding detected");
   }
 
-  // Unusual movement detection
-  const prev = lastPositions[bus.id];
+  // 2️⃣ Sudden passenger spikes (hack attempt / sensor error)
+  if (!bus._lastPassengers) bus._lastPassengers = bus.passengers;
 
-  if (prev) {
-    const distanceMoved = Math.sqrt(
-      Math.pow(bus.lat - prev.lat, 2) +
-      Math.pow(bus.lng - prev.lng, 2)
-    );
-
-    const secondsSinceUpdate = (Date.now() - lastUpdated[bus.id]) / 1000;
-
-    if (distanceMoved < 0.00005 && secondsSinceUpdate > 60) {
-      anomalies.push({
-        type: "not_moving",
-        message: `${bus.id} seems stuck for more than 1 minute.`,
-      });
-    }
-
-    if (distanceMoved > 0.01) {
-      anomalies.push({
-        type: "teleport",
-        message: `${bus.id} made an unnatural jump (GPS glitch detected).`,
-      });
-    }
+  const change = Math.abs(bus.passengers - bus._lastPassengers);
+  if (change >= 15) {
+    anomalies.push("⚠️ Sudden passenger spike detected");
   }
 
-  // Update movement tracking
-  lastPositions[bus.id] = { lat: bus.lat, lng: bus.lng };
-  lastUpdated[bus.id] = Date.now();
+  bus._lastPassengers = bus.passengers;
+
+  // 3️⃣ Unusual movement (teleporting)
+  if (!bus._lastLat) {
+    bus._lastLat = bus.lat;
+    bus._lastLng = bus.lng;
+  }
+
+  const moved =
+    Math.abs(bus.lat - bus._lastLat) +
+    Math.abs(bus.lng - bus._lastLng);
+
+  if (moved > 0.003) {
+    anomalies.push("⚠️ Unusual GPS movement detected");
+  }
+
+  bus._lastLat = bus.lat;
+  bus._lastLng = bus.lng;
 
   return anomalies;
 }
 
-// ------------------------------
+// ---------------------------
 // API ROUTES
-// ------------------------------
-
+// ---------------------------
 app.get("/", (req, res) => {
   res.send("Bus Tracking Backend is running with AI!");
 });
 
 app.get("/api/buses", (req, res) => {
-  buses.forEach(bus => {
-    bus.predicted = predictPassengers(bus);
-  });
-  res.json(buses);
+  const enriched = buses.map(b => ({
+    ...b,
+    predicted: predictPassengers(b),
+    anomalies: detectAnomalies(b),
+  }));
+  res.json(enriched);
 });
 
+// ---------------------------
+// UPDATE BUS LOCATION
+// ---------------------------
 app.post("/api/buses/:id/update", (req, res) => {
   const id = req.params.id;
   const { lat, lng, passengers } = req.body;
@@ -119,37 +119,33 @@ app.post("/api/buses/:id/update", (req, res) => {
   const bus = buses.find(b => b.id === id);
   if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
 
-  // Update bus data
+  // Update bus values
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
-  // Update prediction
   bus.predicted = predictPassengers(bus);
+  bus.anomalies = detectAnomalies(bus);
 
-  // Run anomaly detection
-  const anomalies = detectAnomalies(bus);
-  if (anomalies.length > 0) {
-    console.log(`⚠️ Anomalies detected for ${bus.id}:`, anomalies);
-
-    io.emit("anomaly_alert", { busId: bus.id, anomalies });
+  console.log(`Updated ${bus.id} | Pax: ${bus.passengers} | Predict: ${bus.predicted}`);
+  if (bus.anomalies.length > 0) {
+    console.log("🚨 AI Anomalies:", bus.anomalies);
   }
 
   io.emit("buses_update", buses);
+
   res.json({ ok: true, bus });
 });
 
-// ------------------------------
+// ---------------------------
 // SOCKET.IO
-// ------------------------------
-
+// ---------------------------
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
-
   socket.emit("buses_update", buses);
 });
 
-// ------------------------------
+// ---------------------------
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
