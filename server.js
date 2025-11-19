@@ -17,9 +17,6 @@ const io = new Server(server, {
   },
 });
 
-const predicted = predictPassengers(bus);
-bus.predicted = predicted;
-
 
 // --- AI CROWD PREDICTION ENGINE (Simple ML-based logic) --- //
 
@@ -48,6 +45,15 @@ function predictPassengers(bus) {
   return prediction > 40 ? 40 : prediction; // max capacity
 }
 
+const predicted = predictPassengers(bus);
+bus.predicted = predicted;
+
+app.get("/api/buses", (req, res) => {
+  buses.forEach(b => {
+    b.predicted = predictPassengers(b);
+  });
+  res.json(buses);
+});
 
 let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
@@ -90,9 +96,5 @@ server.listen(PORT, () => {
 });
 
 
-app.get("/api/buses", (req, res) => {
-  buses.forEach(b => {
-    b.predicted = predictPassengers(b);
-  });
-  res.json(buses);
-});
+
+
