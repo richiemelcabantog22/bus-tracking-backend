@@ -35,23 +35,29 @@ app.get("/api/buses", (req, res) => {
 });
 
 app.post("/api/buses/:id/update", (req, res) => {
-  const { id } = req.params;
+  const id = req.params.id;
   const { lat, lng, passengers } = req.body;
 
   const bus = buses.find((b) => b.id === id);
-  if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+  if (!bus)
+    return res.status(404).json({ ok: false, message: "Bus not found" });
 
+  // Update values
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
-  io.emit("buses_update", buses);
+  // AI prediction
+  bus.predicted = predictPassengers(bus);
 
+  console.log(`AI Prediction for ${bus.id}:`, bus.predicted);
+
+  io.emit("buses_update", buses);
   res.json({ ok: true, bus });
 });
 
+
 function predictPassengers(bus) {
-  const current = bus.passengers;
 
   // Get hour using Philippine timezone
   const hour = new Date().getHours();
@@ -93,6 +99,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
