@@ -17,9 +17,41 @@ const io = new Server(server, {
   },
 });
 
+const predicted = predictPassengers(bus);
+bus.predicted = predicted;
+
+
+// --- AI CROWD PREDICTION ENGINE (Simple ML-based logic) --- //
+
+function predictPassengers(bus) {
+  const current = bus.passengers;
+
+  // Get hour using Philippine timezone
+  const hour = new Date().getHours();
+
+  let rushFactor = 1.0;
+
+  // Rush hour boost
+  if (hour >= 6 && hour <= 9) rushFactor = 1.35;      // Morning rush
+  if (hour >= 17 && hour <= 20) rushFactor = 1.50;    // Evening rush
+
+  // Location-based AI (e.g. near Alabang terminal)
+  const nearTerminal =
+    bus.lat >= 14.410 && bus.lat <= 14.420 &&
+    bus.lng >= 121.035 && bus.lng <= 121.048;
+
+  const terminalBoost = nearTerminal ? 1.25 : 1.0;
+
+  // Predict future passengers (10 minutes later)
+  const prediction = Math.round(current * rushFactor * terminalBoost);
+
+  return prediction > 40 ? 40 : prediction; // max capacity
+}
+
+
 let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
-  { id: "BUS-002", lat: 14.4105, lng: 121.0386, passengers: 20 },
+  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
 
 app.get("/", (req, res) => {
@@ -46,6 +78,8 @@ app.post("/api/buses/:id/update", (req, res) => {
   res.json({ ok: true, bus });
 });
 
+
+
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
   socket.emit("buses_update", buses);
@@ -53,4 +87,12 @@ io.on("connection", (socket) => {
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+
+app.get("/api/buses", (req, res) => {
+  buses.forEach(b => {
+    b.predicted = predictPassengers(b);
+  });
+  res.json(buses);
 });
