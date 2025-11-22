@@ -60,7 +60,7 @@ function detectAnomalies(bus) {
 
   // 1️⃣ Overcrowding
   if (bus.passengers >= 38) {
-    anomalies.push("⚠️ Overcrowding detected");
+    anomalies.push("Overcrowding detected");
   }
 
   // 2️⃣ Sudden passenger spikes (hack attempt / sensor error)
@@ -149,3 +149,4 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
