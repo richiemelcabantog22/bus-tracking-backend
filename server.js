@@ -58,17 +58,30 @@ function predictPassengers(bus) {
 function detectAnomalies(bus) {
   const anomalies = [];
 
-  // 1️⃣ Overcrowding
-  if (bus.passengers >= 38) {
-    anomalies.push("Overcrowding detected");
+  // Helper function to push anomalies
+  function add(code, message, level) {
+    anomalies.push({ code, message, level });
   }
 
-  // 2️⃣ Sudden passenger spikes (hack attempt / sensor error)
+  // 1️⃣ Overcrowding
+  if (bus.passengers >= 38) {
+    add(
+      "overcrowding",
+      "Bus is overcrowded (near full capacity)",
+      "high"
+    );
+  }
+
+  // 2️⃣ Sudden passenger spikes
   if (!bus._lastPassengers) bus._lastPassengers = bus.passengers;
 
   const change = Math.abs(bus.passengers - bus._lastPassengers);
   if (change >= 15) {
-    anomalies.push("⚠️ Sudden passenger spike detected");
+    add(
+      "sudden_spike",
+      "Unusual passenger spike detected",
+      "medium"
+    );
   }
 
   bus._lastPassengers = bus.passengers;
@@ -84,14 +97,28 @@ function detectAnomalies(bus) {
     Math.abs(bus.lng - bus._lastLng);
 
   if (moved > 0.003) {
-    anomalies.push("⚠️ Unusual GPS movement detected");
+    add(
+      "gps_jump",
+      "Bus GPS position jumped abnormally",
+      "medium"
+    );
   }
 
   bus._lastLat = bus.lat;
   bus._lastLng = bus.lng;
 
+  // 4️⃣ Low passenger anomaly (optional)
+  if (bus.passengers <= 2) {
+    add(
+      "low_passengers",
+      "Bus is unusually empty",
+      "low"
+    );
+  }
+
   return anomalies;
 }
+
 
 // ---------------------------
 // API ROUTES
@@ -149,4 +176,5 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
