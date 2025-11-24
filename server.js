@@ -17,7 +17,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 // ----------------------------------------------------------------------
 let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
-  { id: "BUS-002", lat: 14.415655, lng: 121.04618, passengers: 20 },
+  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
 
 // ----------------------------------------------------------------------
@@ -36,14 +36,13 @@ function predictPassengers(bus) {
   if (hour >= 17 && hour <= 20) rushFactor = 1.5;
 
   const nearTerminal =
-    bus.lat >= 14.410 &&
-    bus.lat <= 14.420 &&
-    bus.lng >= 121.035 &&
-    bus.lng <= 121.048;
+    bus.lat >= 14.410 && bus.lat <= 14.420 &&
+    bus.lng >= 121.035 && bus.lng <= 121.048;
 
   const terminalBoost = nearTerminal ? 1.25 : 1.0;
 
-  return Math.min(Math.round(current * rushFactor * terminalBoost), 40);
+  const prediction = Math.round(current * rushFactor * terminalBoost);
+  return Math.min(prediction, 40);
 }
 
 // ----------------------------------------------------------------------
@@ -57,12 +56,16 @@ function detectAnomalies(bus) {
   }
 
   // OVERCROWDING
-  if (bus.passengers >= 38) add("overcrowding", "Bus is overcrowded", "high");
+  if (bus.passengers >= 38)
+    add("overcrowding", "Bus is overcrowded", "High");
 
-  // SUDDEN SPIKE
+  // SUDDEN PASSENGER SPIKE
   if (!bus._lastPassengers) bus._lastPassengers = bus.passengers;
-  if (Math.abs(bus.passengers - bus._lastPassengers) >= 15)
-    add("spike", "Unusual passenger spike detected", "medium");
+
+  const diff = Math.abs(bus.passengers - bus._lastPassengers);
+  if (diff >= 15)
+    add("spike", "Unusual passenger spike detected", "Medium");
+
   bus._lastPassengers = bus.passengers;
 
   // GPS TELEPORT
@@ -70,42 +73,47 @@ function detectAnomalies(bus) {
     bus._lastLat = bus.lat;
     bus._lastLng = bus.lng;
   }
-  const jump = Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
-  if (jump > 0.003) add("gps_jump", "GPS movement appears abnormal", "medium");
+
+  const jump =
+    Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
+
+  if (jump > 0.003)
+    add("gps_jump", "Abnormal GPS movement detected", "Medium");
+
   bus._lastLat = bus.lat;
   bus._lastLng = bus.lng;
 
-  // VERY LOW PASSENGERS
-  if (bus.passengers <= 2) add("very_low", "Bus is unusually empty", "low");
+  // VERY LOW PASSENGER COUNT
+  if (bus.passengers <= 2)
+    add("very_low", "Bus is unusually empty", "Low");
 
   return anomalies;
 }
 
 // ----------------------------------------------------------------------
-// CREATE UI-FRIENDLY FIELDS FOR APP
+// FORMATTER → Convert anomalies array → single UI-friendly fields
 // ----------------------------------------------------------------------
-function enrich(bus) {
+function formatBusForUI(bus) {
   const anomalies = detectAnomalies(bus);
-  const top = anomalies[0] || null;
+  const first = anomalies[0] || null;
 
   return {
     ...bus,
     predicted: predictPassengers(bus),
-    anomalies: anomalies,
-    anomaly: top ? top.message : "",          // UI uses this
-    alertLevel: top ? top.level : "normal",   // UI uses this
+    anomalies: anomalies,          // full list
+    anomaly: first ? first.message : "",        // string
+    alertLevel: first ? first.level : "Normal", // string
+    alertMessage: first ? first.message : "",   // string
+    movement: "stable"             // placeholder
   };
 }
 
 // ----------------------------------------------------------------------
-// API ROUTES
+// GET ALL BUSES
 // ----------------------------------------------------------------------
-app.get("/", (req, res) => {
-  res.send("Bus Tracking Backend with AI is running!");
-});
-
 app.get("/api/buses", (req, res) => {
-  res.json(buses.map(enrich));
+  const enriched = buses.map(b => formatBusForUI(b));
+  res.json(enriched);
 });
 
 // ----------------------------------------------------------------------
@@ -115,44 +123,29 @@ app.post("/api/buses/:id/update", (req, res) => {
   const id = req.params.id;
   const { lat, lng, passengers } = req.body;
 
-  const bus = buses.find((b) => b.id === id);
+  const bus = buses.find(b => b.id === id);
   if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
 
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
-  const enriched = buses.map(b => {
-  const predicted = predictPassengers(b);
-  const anomalies = detectAnomalies(b);
-
-  const first = anomalies[0] || null;
-
-  return {
-    ...b,
-    predicted: predicted,
-    anomalies: anomalies,
-
-    // UI-friendly flattened fields
-    anomaly: first ? first.message : "",
-    alertLevel: first ? first.level : "normal",
-    alertMessage: first ? first.message : "",
-  };
-});
+  const enriched = buses.map(b => formatBusForUI(b));
 
   io.emit("buses_update", enriched);
 
-  res.json({ ok: true, bus: enrich(bus) });
+  res.json({ ok: true, bus: formatBusForUI(bus) });
 });
 
 // ----------------------------------------------------------------------
-io.on("connection", (socket) => {
+io.on("connection", socket => {
   console.log("Client connected:", socket.id);
-  socket.emit("buses_update", buses.map(enrich));
+
+  const enriched = buses.map(b => formatBusForUI(b));
+  socket.emit("buses_update", enriched);
 });
 
 // ----------------------------------------------------------------------
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
