@@ -140,11 +140,9 @@ app.post("/api/buses/:id/update", (req, res) => {
   }
 
   console.log(`AI anomalies for ${bus.id}:`, found);
-  // Always broadcast enriched data
-  const enriched = buses.map(b => ({
+   const enriched = buses.map(b => ({
     ...b,
     predicted: predictPassengers(b),
-    anomalies: detectAnomalies(b),
   }));
 
   io.emit("buses_update", enriched);
@@ -161,7 +159,6 @@ io.on("connection", socket => {
     predicted: predictPassengers(b),
     anomalies: detectAnomalies(b),
   }));
-
   socket.emit("buses_update", enriched);
 });
 
@@ -169,5 +166,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
