@@ -121,8 +121,7 @@ app.post("/api/buses/:id/update", (req, res) => {
   bus.passengers = passengers;
 
   bus.predicted = predictPassengers(bus);
-  bus.anomalies = detectAnomalies(bus);
-  string found = detectAnomalies(bus);
+  const found = detectAnomalies(bus);
   bus.anomalies = found;// array (internal)
 
   if (found.length > 0) {
@@ -162,5 +161,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
