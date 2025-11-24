@@ -109,31 +109,102 @@ app.get("/api/buses", (req, res) => {
 // ----------------------------------------------------------------------
 // UPDATE BUS LOCATION
 // ----------------------------------------------------------------------
+// Make sure this is at the top of your server:
+app.use(express.json());
+
+
+// === FINAL PATCHED + AI-INTEGRATED UPDATE ROUTE ===
 app.post("/api/buses/:id/update", (req, res) => {
+  console.log("➡️ /api/buses/:id/update HIT");
+
   const id = req.params.id;
   const { lat, lng, passengers } = req.body;
 
-  const bus = buses.find(b => b.id === id);
-  if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+  console.log("Incoming:", { id, lat, lng, passengers });
 
+  // Find bus (string OR numeric id)
+  const bus = buses.find(b => b.id == id);
+  if (!bus) {
+    console.log("❌ Bus not found:", id);
+    return res.status(404).json({ ok: false, message: "Bus not found" });
+  }
+
+  // Validate
+  if (lat === undefined || lng === undefined || passengers === undefined) {
+    return res.status(400).json({
+      ok: false,
+      message: "Missing lat, lng, or passengers",
+    });
+  }
+
+  // Update fields
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
-  bus.predicted = predictPassengers(bus);
-  bus.anomalies = detectAnomalies(bus);
+  console.log(`✔ Updated bus ${bus.id}`);
 
-  // Always broadcast enriched data
-  const enriched = buses.map(b => ({
-    ...b,
-    predicted: predictPassengers(b),
-    anomalies: detectAnomalies(b),
-  }));
+  // ---------- AI SAFE EXECUTION ----------
+  try {
+    bus.predicted = predictPassengers(bus);
+  } catch (err) {
+    console.error("❌ predictPassengers() error:", err);
+    bus.predicted = null;
+  }
 
-  io.emit("buses_update", enriched);
+  let anomalies = [];
+  try {
+    anomalies = detectAnomalies(bus) || [];
+    bus.anomalies = anomalies;
+  } catch (err) {
+    console.error("❌ detectAnomalies() error:", err);
+    anomalies = [];
+    bus.anomalies = [];
+  }
 
-  res.json({ ok: true, bus });
+  // UI-friendly single anomaly message + alert level
+  if (anomalies.length > 0) {
+    bus.anomaly = anomalies[0].message;
+    bus.alertLevel = anomalies[0].level;
+  } else {
+    bus.anomaly = "";
+    bus.alertLevel = "normal";
+  }
+
+  console.log(`AI anomalies for ${bus.id}:`, anomalies);
+
+  // ---------- Broadcast enriched data ----------
+  const enriched = buses.map(b => {
+    let pred = null;
+    let anoms = [];
+
+    try {
+      pred = predictPassengers(b);
+    } catch {}
+
+    try {
+      anoms = detectAnomalies(b) || [];
+    } catch {}
+
+    return {
+      ...b,
+      predicted: pred,
+      anomalies: anoms,
+      anomaly: anoms[0]?.message || "",
+      alertLevel: anoms[0]?.level || "normal",
+    };
+  });
+
+  try {
+    io.emit("buses_update", enriched);
+  } catch (err) {
+    console.error("❌ Socket emit error:", err);
+  }
+
+  // ---------- Response ----------
+  return res.json({ ok: true, bus });
 });
+
 
 // ----------------------------------------------------------------------
 io.on("connection", socket => {
@@ -152,3 +223,4 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
