@@ -52,7 +52,7 @@ function predictPassengers(bus) {
   return Math.min(prediction, 40); // max capacity
 }
 
-// ---------------------------
+
 // AI ANOMALY DETECTION ENGINE
 // ---------------------------
 function detectAnomalies(bus) {
@@ -176,5 +176,6 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
