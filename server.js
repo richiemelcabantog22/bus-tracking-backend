@@ -78,12 +78,12 @@ function detectAnomalies(bus) {
     Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
 
   if (jump > 0.003)
-    add("gps_jump", "Abnormal GPS movement detected", "Medium");
+    add("gps_jump", "GPS movement appears abnormal", "Medium");
 
   bus._lastLat = bus.lat;
   bus._lastLng = bus.lng;
 
-  // VERY LOW PASSENGER COUNT
+  // OPTIONAL LOW PASSENGER ANOMALY
   if (bus.passengers <= 2)
     add("very_low", "Bus is unusually empty", "Low");
 
@@ -91,29 +91,32 @@ function detectAnomalies(bus) {
 }
 
 // ----------------------------------------------------------------------
-// FORMATTER → Convert anomalies array → single UI-friendly fields
+// ENRICH BUS (format for commuter + driver apps)
 // ----------------------------------------------------------------------
-function formatBusForUI(bus) {
+function enrichBus(bus) {
+  const predicted = predictPassengers(bus);
   const anomalies = detectAnomalies(bus);
-  const first = anomalies[0] || null;
 
   return {
     ...bus,
-    predicted: predictPassengers(bus),
-    anomalies: anomalies,          // full list
-    anomaly: first ? first.message : "",        // string
-    alertLevel: first ? first.level : "Normal", // string
-    alertMessage: first ? first.message : "",   // string
-    movement: "stable"             // placeholder
+    predicted,
+    anomalies,
+    anomaly: anomalies[0]?.message || "",      // string
+    alertLevel: anomalies[0]?.level || "Normal", // High/Medium/Low/Normal
+    alertMessage: anomalies[0]?.message || "",
+    movement: "stable",
   };
 }
 
 // ----------------------------------------------------------------------
-// GET ALL BUSES
+// API
 // ----------------------------------------------------------------------
+app.get("/", (req, res) => {
+  res.send("Bus Tracking Backend with AI is running!");
+});
+
 app.get("/api/buses", (req, res) => {
-  const enriched = buses.map(b => formatBusForUI(b));
-  res.json(enriched);
+  res.json(buses.map(enrichBus));
 });
 
 // ----------------------------------------------------------------------
@@ -126,23 +129,22 @@ app.post("/api/buses/:id/update", (req, res) => {
   const bus = buses.find(b => b.id === id);
   if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
 
+  // Update values
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
-  const enriched = buses.map(b => formatBusForUI(b));
-
+  // Broadcast full enriched data
+  const enriched = buses.map(enrichBus);
   io.emit("buses_update", enriched);
 
-  res.json({ ok: true, bus: formatBusForUI(bus) });
+  res.json({ ok: true, bus: enrichBus(bus) });
 });
 
 // ----------------------------------------------------------------------
 io.on("connection", socket => {
   console.log("Client connected:", socket.id);
-
-  const enriched = buses.map(b => formatBusForUI(b));
-  socket.emit("buses_update", enriched);
+  socket.emit("buses_update", buses.map(enrichBus));
 });
 
 // ----------------------------------------------------------------------
