@@ -48,6 +48,7 @@ function predictPassengers(bus) {
 // ----------------------------------------------------------------------
 // AI ANOMALY DETECTION
 // ----------------------------------------------------------------------
+// AI ANOMALY DETECTION -------------------------------------------------
 function detectAnomalies(bus) {
   const anomalies = [];
 
@@ -55,37 +56,37 @@ function detectAnomalies(bus) {
     anomalies.push({ code, message, level });
   }
 
-  // OVERCROWDING
-  if (bus.passengers >= 38)
+  // Overcrowding
+  if (bus.passengers >= 38) {
     add("overcrowding", "Bus is overcrowded", "high");
+  }
 
-  // SUDDEN PASSENGER SPIKE
+  // Sudden passenger spike
   if (!bus._lastPassengers) bus._lastPassengers = bus.passengers;
-
   const diff = Math.abs(bus.passengers - bus._lastPassengers);
-  if (diff >= 15)
+  if (diff >= 15) {
     add("spike", "Unusual passenger spike detected", "medium");
-
+  }
   bus._lastPassengers = bus.passengers;
 
-  // GPS TELEPORT
+  // GPS teleport
   if (!bus._lastLat) {
     bus._lastLat = bus.lat;
     bus._lastLng = bus.lng;
   }
-
   const jump =
     Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
 
-  if (jump > 0.003)
+  if (jump > 0.003) {
     add("gps_jump", "GPS movement appears abnormal", "medium");
-
+  }
   bus._lastLat = bus.lat;
   bus._lastLng = bus.lng;
 
-  // LOW PASSENGER ANOMALY (OPTIONAL)
-  if (bus.passengers <= 2)
+  // Very low passengers
+  if (bus.passengers <= 2) {
     add("very_low", "Bus is unusually empty", "low");
+  }
 
   return anomalies;
 }
@@ -113,25 +114,34 @@ app.post("/api/buses/:id/update", (req, res) => {
   const id = req.params.id;
   const { lat, lng, passengers } = req.body;
 
-  const bus = buses.find(b => b.id === id);
-  if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+  const bus = buses.find((b) => b.id === id);
+  if (!bus)
+    return res.status(404).json({ ok: false, message: "Bus not found" });
 
+  // Update fields
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
+  // AI prediction
   bus.predicted = predictPassengers(bus);
-  bus.anomalies = detectAnomalies(bus);
 
-  // Always broadcast enriched data
-  const enriched = buses.map(b => ({
-    ...b,
-    predicted: predictPassengers(b),
-    anomalies: detectAnomalies(b),
-  }));
+  // AI anomaly detection
+  const found = detectAnomalies(bus);
+  bus.anomalies = found;  // array (internal)
 
-  io.emit("buses_update", enriched);
+  // Convert to SINGLE string + level for commuter UI
+  if (found.length > 0) {
+    bus.anomaly = found[0].message;   // string
+    bus.alertLevel = found[0].level;  // low/medium/high
+  } else {
+    bus.anomaly = "";
+    bus.alertLevel = "normal";
+  }
 
+  console.log(`AI anomalies for ${bus.id}:`, found);
+
+  io.emit("buses_update", buses);
   res.json({ ok: true, bus });
 });
 
@@ -152,3 +162,4 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
