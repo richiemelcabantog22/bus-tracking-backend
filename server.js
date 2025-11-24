@@ -17,7 +17,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 // ----------------------------------------------------------------------
 let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
-  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
+  { id: "BUS-002", lat: 14.415655, lng: 121.04618, passengers: 20 },
 ];
 
 // ----------------------------------------------------------------------
@@ -36,13 +36,14 @@ function predictPassengers(bus) {
   if (hour >= 17 && hour <= 20) rushFactor = 1.5;
 
   const nearTerminal =
-    bus.lat >= 14.410 && bus.lat <= 14.420 &&
-    bus.lng >= 121.035 && bus.lng <= 121.048;
+    bus.lat >= 14.410 &&
+    bus.lat <= 14.420 &&
+    bus.lng >= 121.035 &&
+    bus.lng <= 121.048;
 
   const terminalBoost = nearTerminal ? 1.25 : 1.0;
 
-  const prediction = Math.round(current * rushFactor * terminalBoost);
-  return Math.min(prediction, 40);
+  return Math.min(Math.round(current * rushFactor * terminalBoost), 40);
 }
 
 // ----------------------------------------------------------------------
@@ -56,16 +57,12 @@ function detectAnomalies(bus) {
   }
 
   // OVERCROWDING
-  if (bus.passengers >= 38)
-    add("overcrowding", "Bus is overcrowded", "high");
+  if (bus.passengers >= 38) add("overcrowding", "Bus is overcrowded", "high");
 
-  // SUDDEN PASSENGER SPIKE
+  // SUDDEN SPIKE
   if (!bus._lastPassengers) bus._lastPassengers = bus.passengers;
-
-  const diff = Math.abs(bus.passengers - bus._lastPassengers);
-  if (diff >= 15)
+  if (Math.abs(bus.passengers - bus._lastPassengers) >= 15)
     add("spike", "Unusual passenger spike detected", "medium");
-
   bus._lastPassengers = bus.passengers;
 
   // GPS TELEPORT
@@ -73,21 +70,31 @@ function detectAnomalies(bus) {
     bus._lastLat = bus.lat;
     bus._lastLng = bus.lng;
   }
-
-  const jump =
-    Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
-
-  if (jump > 0.003)
-    add("gps_jump", "GPS movement appears abnormal", "medium");
-
+  const jump = Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
+  if (jump > 0.003) add("gps_jump", "GPS movement appears abnormal", "medium");
   bus._lastLat = bus.lat;
   bus._lastLng = bus.lng;
 
-  // LOW PASSENGER ANOMALY (OPTIONAL)
-  if (bus.passengers <= 2)
-    add("very_low", "Bus is unusually empty", "low");
+  // VERY LOW PASSENGERS
+  if (bus.passengers <= 2) add("very_low", "Bus is unusually empty", "low");
 
   return anomalies;
+}
+
+// ----------------------------------------------------------------------
+// CREATE UI-FRIENDLY FIELDS FOR APP
+// ----------------------------------------------------------------------
+function enrich(bus) {
+  const anomalies = detectAnomalies(bus);
+  const top = anomalies[0] || null;
+
+  return {
+    ...bus,
+    predicted: predictPassengers(bus),
+    anomalies: anomalies,
+    anomaly: top ? top.message : "",          // UI uses this
+    alertLevel: top ? top.level : "normal",   // UI uses this
+  };
 }
 
 // ----------------------------------------------------------------------
@@ -98,117 +105,37 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/buses", (req, res) => {
-  const enriched = buses.map(b => ({
-    ...b,
-    predicted: predictPassengers(b),
-    anomalies: detectAnomalies(b),
-  }));
-  res.json(enriched);
+  res.json(buses.map(enrich));
 });
 
 // ----------------------------------------------------------------------
 // UPDATE BUS LOCATION
 // ----------------------------------------------------------------------
-// Make sure this is at the top of your server:
-// === FINAL PATCHED + AI-INTEGRATED UPDATE ROUTE ===
-app.get("/", (req, res) => {
-  res.send("Bus Tracking Backend is running with AI!");
-});
-
-// Return enriched list
-app.get("/api/buses", (req, res) => {
-  const enriched = buses.map(enrichBus);
-  res.json(enriched);
-});
-
-// ---------- PATCHED + SAFE UPDATE ROUTE ----------
 app.post("/api/buses/:id/update", (req, res) => {
-  console.log("➡️ /api/buses/:id/update HIT");
-
   const id = req.params.id;
   const { lat, lng, passengers } = req.body;
 
-  console.log("Incoming:", { id, lat, lng, passengers });
+  const bus = buses.find((b) => b.id === id);
+  if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
 
-  const bus = buses.find((b) => b.id == id);
-  if (!bus) {
-    console.log("❌ Bus not found:", id);
-    return res.status(404).json({ ok: false, message: "Bus not found" });
-  }
+  bus.lat = lat;
+  bus.lng = lng;
+  bus.passengers = passengers;
 
-  // Validate
-  if (lat === undefined || lng === undefined || passengers === undefined) {
-    return res.status(400).json({
-      ok: false,
-      message: "Missing lat, lng, or passengers",
-    });
-  }
+  const enriched = buses.map(enrich);
 
-  // Update fields
-  bus.lat = Number(lat);
-  bus.lng = Number(lng);
-  bus.passengers = Number(passengers);
+  io.emit("buses_update", enriched);
 
-  console.log(`✔ Updated bus ${bus.id} | pax:${bus.passengers}`);
-
-  // Safe AI execution
-  try {
-    bus.predicted = predictPassengers(bus);
-  } catch (err) {
-    console.error("❌ predictPassengers() error:", err);
-    bus.predicted = null;
-  }
-
-  let anomalies = [];
-  try {
-    anomalies = detectAnomalies(bus) || [];
-    bus.anomalies = anomalies;
-  } catch (err) {
-    console.error("❌ detectAnomalies() error:", err);
-    anomalies = [];
-    bus.anomalies = [];
-  }
-
-  // single UI-friendly anomaly + alert level
-  if (anomalies.length > 0) {
-    bus.anomaly = anomalies[0].message;
-    bus.alertLevel = anomalies[0].level;
-  } else {
-    bus.anomaly = "";
-    bus.alertLevel = "normal";
-  }
-
-  console.log(`AI anomalies for ${bus.id}:`, anomalies);
-
-  // Broadcast enriched dataset
-  const enriched = buses.map(enrichBus);
-
-  try {
-    io.emit("buses_update", enriched);
-  } catch (err) {
-    console.error("❌ Socket emit error:", err);
-  }
-
-  return res.json({ ok: true, bus: enrichBus(bus) });
+  res.json({ ok: true, bus: enrich(bus) });
 });
 
-
 // ----------------------------------------------------------------------
-io.on("connection", socket => {
+io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
-
-  const enriched = buses.map(b => ({
-    ...b,
-    predicted: predictPassengers(b),
-    anomalies: detectAnomalies(b),
-  }));
-
-   socket.emit("buses_update", buses.map(enrichBus));
+  socket.emit("buses_update", buses.map(enrich));
 });
 
 // ----------------------------------------------------------------------
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
