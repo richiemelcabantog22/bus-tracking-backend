@@ -122,7 +122,23 @@ app.post("/api/buses/:id/update", (req, res) => {
   bus.lng = lng;
   bus.passengers = passengers;
 
-  const enriched = buses.map(enrich);
+  const enriched = buses.map(b => {
+  const predicted = predictPassengers(b);
+  const anomalies = detectAnomalies(b);
+
+  const first = anomalies[0] || null;
+
+  return {
+    ...b,
+    predicted: predicted,
+    anomalies: anomalies,
+
+    // UI-friendly flattened fields
+    anomaly: first ? first.message : "",
+    alertLevel: first ? first.level : "normal",
+    alertMessage: first ? first.message : "",
+  };
+});
 
   io.emit("buses_update", enriched);
 
@@ -139,3 +155,4 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
