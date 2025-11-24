@@ -57,14 +57,14 @@ function detectAnomalies(bus) {
 
   // OVERCROWDING
   if (bus.passengers >= 38)
-    add("overcrowding", "Bus is overcrowded", "High");
+    add("overcrowding", "Bus is overcrowded", "high");
 
   // SUDDEN PASSENGER SPIKE
   if (!bus._lastPassengers) bus._lastPassengers = bus.passengers;
 
   const diff = Math.abs(bus.passengers - bus._lastPassengers);
   if (diff >= 15)
-    add("spike", "Unusual passenger spike detected", "Medium");
+    add("spike", "Unusual passenger spike detected", "medium");
 
   bus._lastPassengers = bus.passengers;
 
@@ -78,45 +78,32 @@ function detectAnomalies(bus) {
     Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
 
   if (jump > 0.003)
-    add("gps_jump", "GPS movement appears abnormal", "Medium");
+    add("gps_jump", "GPS movement appears abnormal", "medium");
 
   bus._lastLat = bus.lat;
   bus._lastLng = bus.lng;
 
-  // OPTIONAL LOW PASSENGER ANOMALY
+  // LOW PASSENGER ANOMALY (OPTIONAL)
   if (bus.passengers <= 2)
-    add("very_low", "Bus is unusually empty", "Low");
+    add("very_low", "Bus is unusually empty", "low");
 
   return anomalies;
 }
 
 // ----------------------------------------------------------------------
-// ENRICH BUS (format for commuter + driver apps)
-// ----------------------------------------------------------------------
-function enrichBus(bus) {
-  const predicted = predictPassengers(bus);
-  const anomalies = detectAnomalies(bus);
-
-  return {
-    ...bus,
-    predicted,
-    anomalies,
-    anomaly: anomalies[0]?.message || "",      // string
-    alertLevel: anomalies[0]?.level || "Normal", // High/Medium/Low/Normal
-    alertMessage: anomalies[0]?.message || "",
-    movement: "stable",
-  };
-}
-
-// ----------------------------------------------------------------------
-// API
+// API ROUTES
 // ----------------------------------------------------------------------
 app.get("/", (req, res) => {
   res.send("Bus Tracking Backend with AI is running!");
 });
 
 app.get("/api/buses", (req, res) => {
-  res.json(buses.map(enrichBus));
+  const enriched = buses.map(b => ({
+    ...b,
+    predicted: predictPassengers(b),
+    anomalies: detectAnomalies(b),
+  }));
+  res.json(enriched);
 });
 
 // ----------------------------------------------------------------------
@@ -129,22 +116,36 @@ app.post("/api/buses/:id/update", (req, res) => {
   const bus = buses.find(b => b.id === id);
   if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
 
-  // Update values
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
-  // Broadcast full enriched data
-  const enriched = buses.map(enrichBus);
+  bus.predicted = predictPassengers(bus);
+  bus.anomalies = detectAnomalies(bus);
+
+  // Always broadcast enriched data
+  const enriched = buses.map(b => ({
+    ...b,
+    predicted: predictPassengers(b),
+    anomalies: detectAnomalies(b),
+  }));
+
   io.emit("buses_update", enriched);
 
-  res.json({ ok: true, bus: enrichBus(bus) });
+  res.json({ ok: true, bus });
 });
 
 // ----------------------------------------------------------------------
 io.on("connection", socket => {
   console.log("Client connected:", socket.id);
-  socket.emit("buses_update", buses.map(enrichBus));
+
+  const enriched = buses.map(b => ({
+    ...b,
+    predicted: predictPassengers(b),
+    anomalies: detectAnomalies(b),
+  }));
+
+  socket.emit("buses_update", enriched);
 });
 
 // ----------------------------------------------------------------------
