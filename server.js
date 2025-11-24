@@ -122,6 +122,16 @@ app.post("/api/buses/:id/update", (req, res) => {
 
   bus.predicted = predictPassengers(bus);
   bus.anomalies = detectAnomalies(bus);
+  const found = detectAnomalies(bus);
+  bus.anomalies = found;// array (internal)
+
+  if (found.length > 0) {
+    bus.anomaly = found[0].message;   // string
+    bus.alertLevel = found[0].level;  // low/medium/high
+  } else {
+    bus.anomaly = "";
+    bus.alertLevel = "normal";
+  }
 
   // Always broadcast enriched data
   const enriched = buses.map(b => ({
@@ -152,3 +162,4 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
