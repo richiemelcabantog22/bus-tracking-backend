@@ -50,6 +50,7 @@ function predictPassengers(bus) {
 // ----------------------------------------------------------------------
 function detectAnomalies(bus) {
   const anomalies = [];
+
   function add(code, message, level) {
     anomalies.push({ code, message, level });
   }
@@ -118,17 +119,9 @@ app.post("/api/buses/:id/update", (req, res) => {
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
-  
-  bus.predicted = predictPassengers(bus);
-  bus.anomalies = detectAnomalies(bus);;// array (internal)
 
-  if (anomalies.length > 0) {
-    bus.anomalies = anomalies[0].message;   // string
-    bus.alertLevel = anomalies[0].level;  // low/medium/high
-  } else {
-    bus.anomalies = "";
-    bus.alertLevel = "normal";
-  }
+  bus.predicted = predictPassengers(bus);
+  bus.anomalies = detectAnomalies(bus);
 
   // Always broadcast enriched data
   const enriched = buses.map(b => ({
@@ -138,7 +131,7 @@ app.post("/api/buses/:id/update", (req, res) => {
   }));
 
   io.emit("buses_update", enriched);
-  console.log(`AI anomalies for ${bus.id}:`, anomalies);
+
   res.json({ ok: true, bus });
 });
 
@@ -159,7 +152,3 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
