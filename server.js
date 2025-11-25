@@ -59,14 +59,16 @@ function detectAnomalies(bus) {
   if (bus.passengers >= 38)
     add("overcrowding", "Bus is overcrowded", "high");
 
-  // PASSENGER SPIKE
+  // SUDDEN PASSENGER SPIKE
   if (!bus._lastPassengers) bus._lastPassengers = bus.passengers;
+
   const diff = Math.abs(bus.passengers - bus._lastPassengers);
   if (diff >= 15)
-    add("spike", "Unusual passenger spike", "medium");
+    add("spike", "Unusual passenger spike detected", "medium");
+
   bus._lastPassengers = bus.passengers;
 
-  // GPS JUMP
+  // GPS TELEPORT / ABNORMAL MOVEMENT
   if (!bus._lastLat) {
     bus._lastLat = bus.lat;
     bus._lastLng = bus.lng;
@@ -74,42 +76,45 @@ function detectAnomalies(bus) {
 
   const jump =
     Math.abs(bus.lat - bus._lastLat) + Math.abs(bus.lng - bus._lastLng);
+
   if (jump > 0.003)
-    add("gps_jump", "Abnormal GPS movement", "medium");
+    add("gps_jump", "GPS movement appears abnormal", "medium");
 
   bus._lastLat = bus.lat;
   bus._lastLng = bus.lng;
 
-  // TOO LOW
+  // VERY LOW PASSENGERS
   if (bus.passengers <= 2)
     add("very_low", "Bus is unusually empty", "low");
 
   return anomalies;
 }
 
-
 // ----------------------------------------------------------------------
-// API ROUTES
+// ROOT
 // ----------------------------------------------------------------------
 app.get("/", (req, res) => {
   res.send("Bus Tracking Backend with AI is running!");
 });
 
+// ----------------------------------------------------------------------
+// FETCH ALL BUSES (WITH AI)
+// ----------------------------------------------------------------------
 app.get("/api/buses", (req, res) => {
   const enriched = buses.map(b => {
     const anoms = detectAnomalies(b);
+
     return {
       ...b,
       predicted: predictPassengers(b),
       anomalies: anoms,
       anomaly: anoms[0]?.message || "",
       alertLevel: anoms[0]?.level || "normal",
-      alertMessage: anoms[0]?.message || "",
     };
   });
+
   res.json(enriched);
 });
-
 
 // ----------------------------------------------------------------------
 // UPDATE BUS LOCATION
@@ -119,39 +124,29 @@ app.post("/api/buses/:id/update", (req, res) => {
   const { lat, lng, passengers } = req.body;
 
   const bus = buses.find(b => b.id === id);
-  if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+  if (!bus)
+    return res.status(404).json({ ok: false, message: "Bus not found" });
 
+  // Update
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
 
+  // Apply AI
+  const anomalies = detectAnomalies(bus);
   bus.predicted = predictPassengers(bus);
-  bus.anomalies = detectAnomalies(bus);
+  bus.anomalies = anomalies;
+  bus.anomaly = anomalies[0]?.message || "";
+  bus.alertLevel = anomalies[0]?.level || "normal";
 
-// single UI-friendly alert
-if (bus.anomalies.length > 0) {
-  bus.anomaly = bus.anomalies[0].message;
-  bus.alertLevel = bus.anomalies[0].level;
-  bus.alertMessage = bus.anomalies[0].message;
-} else {
-  bus.anomaly = "";
-  bus.alertLevel = "normal";
-  bus.alertMessage = "";
-}
-
-  // Always broadcast enriched data
-  const enriched = buses.map(b => {
-  const anoms = detectAnomalies(b);
-  return {
+  // Prepare enriched data
+  const enriched = buses.map(b => ({
     ...b,
     predicted: predictPassengers(b),
-    anomalies: anoms,
-    anomaly: anoms[0]?.message || "",
-    alertLevel: anoms[0]?.level || "normal",
-    alertMessage: anoms[0]?.message || "",
-  };
-});
-
+    anomalies: detectAnomalies(b),
+    anomaly: detectAnomalies(b)[0]?.message || "",
+    alertLevel: detectAnomalies(b)[0]?.level || "normal",
+  }));
 
   io.emit("buses_update", enriched);
 
@@ -162,11 +157,16 @@ if (bus.anomalies.length > 0) {
 io.on("connection", socket => {
   console.log("Client connected:", socket.id);
 
-  const enriched = buses.map(b => ({
-    ...b,
-    predicted: predictPassengers(b),
-    anomalies: detectAnomalies(b),
-  }));
+  const enriched = buses.map(b => {
+    const anoms = detectAnomalies(b);
+    return {
+      ...b,
+      predicted: predictPassengers(b),
+      anomalies: anoms,
+      anomaly: anoms[0]?.message || "",
+      alertLevel: anoms[0]?.level || "normal",
+    };
+  });
 
   socket.emit("buses_update", enriched);
 });
@@ -175,4 +175,3 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
