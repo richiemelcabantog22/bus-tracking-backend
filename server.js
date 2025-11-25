@@ -147,6 +147,44 @@ function predictPassengers(bus) {
   return Math.min(prediction, 40);
 }
 
+// ------------------------------------------------------
+
+// -------------------------------------------------------------
+// AI CROWD FLOW PREDICTION (Trend Direction)
+// -------------------------------------------------------------
+
+function predictCrowdFlow(bus) {
+  if (!bus._history) bus._history = [];
+
+  // Store last 5 passenger counts
+  bus._history.push(bus.passengers);
+  if (bus._history.length > 5) bus._history.shift();
+
+  if (bus._history.length < 3) return "stable";
+
+  const a = bus._history[bus._history.length - 3];
+  const b = bus._history[bus._history.length - 2];
+  const c = bus._history[bus._history.length - 1];
+
+  const delta1 = b - a;
+  const delta2 = c - b;
+
+  // Sudden increase
+  if (delta1 > 5 && delta2 > 5) return "spike";
+
+  // Sudden drop
+  if (delta1 < -5 && delta2 < -5) return "drop";
+
+  // Slow upward trend
+  if (delta2 > 2) return "increasing";
+
+  // Slow downward trend
+  if (delta2 < -2) return "decreasing";
+
+  return "stable";
+}
+
+
 // ----------------------------------------------------------------------
 // AI ANOMALY DETECTION
 // ----------------------------------------------------------------------
@@ -201,7 +239,8 @@ function buildEnriched() {
       anomalies,                     // required by commuter app
       alertLevel: first?.level || "normal",
       alertMessage: first?.message || "",
-      movement: movementMonitoring(b)
+      movement: movementMonitoring(b),
+      crowdFlow: predictCrowdFlow(b)
     };
   });
 }
@@ -230,6 +269,8 @@ app.post("/api/buses/:id/update", (req, res) => {
   bus.lng = lng;
   bus.passengers = passengers;
   bus.movement = movementMonitoring(bus);
+  bus.crowdFlow = predictCrowdFlow(bus);
+
 
   // Broadcast enriched data
   io.emit("buses_update", buildEnriched());
@@ -251,5 +292,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
