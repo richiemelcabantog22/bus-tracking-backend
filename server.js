@@ -19,6 +19,51 @@ let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
   { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
+// -----------------------------------------------------------
+
+function aiStopETA(bus, stopLat, stopLng) {
+  // Distance
+  const R = 6371;
+  const dLat = (stopLat - bus.lat) * Math.PI/180;
+  const dLng = (stopLng - bus.lng) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(bus.lat*Math.PI/180) *
+            Math.cos(stopLat*Math.PI/180) *
+            Math.sin(dLng/2)**2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distanceKm = R * c;
+
+  // Speed estimate
+  let speed = 25;
+  if (distanceKm < 1) speed = 15;
+  if (distanceKm > 5) speed = 45;
+
+  // Traffic factor
+  let trafficFactor = 1.0;
+  if (speed > 35) trafficFactor = 0.9;
+  if (speed < 20) trafficFactor = 1.25;
+
+  // Raw ETA
+  let eta = (distanceKm / speed) * 60 * trafficFactor;
+
+  // AI smoothing
+  if (!bus._lastETA) bus._lastETA = eta;
+  eta = bus._lastETA * 0.7 + eta * 0.3;
+  bus._lastETA = eta;
+
+  return {
+    eta: eta,
+    traffic:
+      speed > 35 ? "Light" :
+      speed > 20 ? "Moderate" :
+                   "Heavy",
+    distanceKm: distanceKm,
+  };
+}
+
+
+
+
 // ----------------------
 
 function movementMonitoring(bus) {
@@ -188,6 +233,10 @@ app.post("/api/buses/:id/update", (req, res) => {
 
   // Broadcast enriched data
   io.emit("buses_update", buildEnriched());
+  etaToStops: _busStops.map(stop => ({
+    stopName: stop.name,
+    ...aiStopETA(b, stop.lat, stop.lng)
+})),
 
   res.json({ ok: true, bus });
 });
@@ -202,4 +251,5 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
