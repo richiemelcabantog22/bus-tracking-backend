@@ -106,6 +106,43 @@ function predictCrowdFlow(bus) {
   return "stable";
 }
 
+// -------------------------------------------------
+
+function explainCrowdChange(bus) {
+  const history = bus.history || [];
+  if (history.length < 3) return "Insufficient data";
+
+  const last = history[history.length - 1].passengers;
+  const prev = history[history.length - 2].passengers;
+  const diff = last - prev;
+
+  // Trend
+  if (diff > 5) {
+    return "Crowd rising — bus likely approaching a busy stop.";
+  }
+  if (diff < -5) {
+    return "Crowd dropping — passengers recently got off at a stop.";
+  }
+
+  // Stop proximity pattern
+  if (bus.nearStop) {
+    if (diff > 0) return `Passengers boarding at ${bus.nearStop}`;
+    if (diff < 0) return `Passengers alighting at ${bus.nearStop}`;
+  }
+
+  // Movement-based reasoning
+  if (bus.movement === "slow") {
+    return "Slow movement — may be picking up more passengers.";
+  }
+
+  if (bus.movement === "stopped") {
+    return "Stopped — possible passenger loading/unloading.";
+  }
+
+  return "Stable passenger flow";
+}
+
+
 // --------------------------
 // detectAnomalies (unchanged structure)
 // --------------------------
@@ -228,6 +265,7 @@ function buildEnriched() {
       risk5min,
       risk10min,
       forecastConfidence: Math.min(1, ((f5.confidence + f10.confidence) / 2) || 0.5),
+      crowdExplanation: b.crowdExplanation || "Stable",
     };
   });
 }
@@ -275,6 +313,12 @@ app.post("/api/buses/:id/update", (req, res) => {
     console.error("Socket emit error:", err);
   }
 
+  try {
+  bus.crowdExplanation = explainCrowdChange(bus);
+} catch (e) {
+  bus.crowdExplanation = "No explanation available";
+}
+
   return res.json({ ok: true, bus });
 });
 
@@ -290,3 +334,4 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
