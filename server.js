@@ -89,7 +89,6 @@ function predictPassengers(bus) {
 // --------------------------
 function predictCrowdFlow(bus) {
   if (!bus._history) bus._history = [];
-  bus._history.push(bus.passengers);
   if (bus._history.length > 5) bus._history.shift();
   if (bus._history.length < 3) return "stable";
 
@@ -228,6 +227,24 @@ function riskLevelFromCount(count) {
   if (count >= 30) return "warning";
   return "normal";
 }
+// -----------------------------------------------
+
+function updateHistory(bus) {
+  if (!Array.isArray(bus._history)) bus._history = [];
+
+  const MAX = 5;
+
+  // Only push if NEW value, avoid duplicates
+  if (bus._history[0] !== bus.passengers) {
+    bus._history.unshift(bus.passengers);
+  }
+
+  // Limit to last 5 samples
+  if (bus._history.length > MAX) {
+    bus._history = bus._history.slice(0, MAX);
+  }
+}
+
 
 // --------------------------
 // Build enriched bus data (includes forecasts)
@@ -300,6 +317,7 @@ app.post("/api/buses/:id/update", (req, res) => {
   bus.passengers = passengers;
 
   // push history record for forecasting
+  updateHistory(bus);
   pushHistoryRecord(bus);
 
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
@@ -327,16 +345,6 @@ if (!Array.isArray(bus._history)) {
 }
 
 // Only record if changed (prevents 40,40,40,40,40)
-if (bus._history.length === 0 ||
-    bus._history[0] !== bus.passengers) {
-
-  bus._history.unshift(bus.passengers);
-
-  // Keep last 5 values only
-  if (bus._history.length > 5) {
-    bus._history = bus._history.slice(0, 5);
-  }
-}
 
 
   return res.json({ ok: true, bus });
@@ -354,5 +362,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
