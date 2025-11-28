@@ -319,6 +319,26 @@ app.post("/api/buses/:id/update", (req, res) => {
   bus.crowdExplanation = "No explanation available";
 }
 
+  // ----------------------------------------------
+// FIXED PASSENGER HISTORY LOGIC (A-8 important)
+// ----------------------------------------------
+if (!Array.isArray(bus._history)) {
+  bus._history = [];
+}
+
+// Only record if changed (prevents 40,40,40,40,40)
+if (bus._history.length === 0 ||
+    bus._history[0] !== bus.passengers) {
+
+  bus._history.unshift(bus.passengers);
+
+  // Keep last 5 values only
+  if (bus._history.length > 5) {
+    bus._history = bus._history.slice(0, 5);
+  }
+}
+
+
   return res.json({ ok: true, bus });
 });
 
@@ -334,4 +354,5 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
