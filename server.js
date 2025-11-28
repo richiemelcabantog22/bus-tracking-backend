@@ -175,10 +175,20 @@ function detectAnomalies(bus) {
 
 // Save a timestamped history record (call when updating)
 function pushHistoryRecord(bus) {
-  if (!bus._historyRecords) bus._historyRecords = [];
-  bus._historyRecords.push({ t: Date.now(), p: bus.passengers });
-  // keep last 10
-  if (bus._historyRecords.length > 10) bus._historyRecords.shift();
+  // --- HISTORY RECORDING (anti-duplicate) ---
+if (bus.passengers !== bus._lastHistoryValue) {
+  bus._historyRecords.push({
+    t: Date.now(),
+    p: bus.passengers,
+  });
+
+  // keep last 30 only (avoid memory bloating)
+  if (bus._historyRecords.length > 30) {
+    bus._historyRecords = bus._historyRecords.slice(-30);
+  }
+
+  bus._lastHistoryValue = bus.passengers;  // update last record
+}
 }
 
 // Forecast passengers by linear extrapolation from recent history
@@ -315,8 +325,9 @@ app.post("/api/buses/:id/update", (req, res) => {
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
-
+  
   // push history record for forecasting
+  if (!bus._lastHistoryValue) bus._lastHistoryValue = bus.passengers;
   updateHistory(bus);
   pushHistoryRecord(bus);
 
@@ -362,6 +373,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
