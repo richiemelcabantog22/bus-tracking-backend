@@ -28,28 +28,42 @@ let buses = [
 // ---------------------------
 // OSRM Route Fetcher (no node-fetch)
 // ---------------------------
-async function getOSRMRoute(startLat, startLng, endLat, endLng) {
-  try {
+const https = require("https");
+
+// OSRM route fetcher (no node-fetch)
+function getOSRMRoute(startLat, startLng, endLat, endLng) {
+  return new Promise((resolve) => {
     const url =
       `https://router.project-osrm.org/route/v1/driving/` +
       `${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
 
-    const res = await fetch(url);  // <-- Native fetch (no node-fetch)
-    const data = await res.json();
+    https
+      .get(url, (res) => {
+        let data = "";
 
-    if (!data.routes || data.routes.length === 0) {
-      return [];
-    }
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
 
-    // GeoJSON format: coordinates = [lng, lat]
-    return data.routes[0].geometry.coordinates.map(coord => ({
-      lat: coord[1],
-      lng: coord[0],
-    }));
-  } catch (err) {
-    console.error("OSRM fetch error:", err);
-    return [];
-  }
+            if (!json.routes || !json.routes[0]) return resolve(null);
+
+            const coords = json.routes[0].geometry.coordinates;
+
+            // convert [lng,lat] → [lat,lng]
+            const polyline = coords.map((c) => ({
+              lat: c[1],
+              lng: c[0]
+            }));
+
+            resolve(polyline);
+          } catch (e) {
+            resolve(null);
+          }
+        });
+      })
+      .on("error", () => resolve(null));
+  });
 }
 
 
@@ -430,6 +444,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
