@@ -341,7 +341,7 @@ app.get("/api/buses", (req, res) => {
 });
 
 // Update route — stores a history record and broadcasts enriched data
-app.post("/api/buses/:id/update", (req, res) => {
+app.post("/api/buses/:id/update", async (req, res) => {
   const id = req.params.id;
   const { lat, lng, passengers } = req.body;
 
@@ -431,6 +431,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
