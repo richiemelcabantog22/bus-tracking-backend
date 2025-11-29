@@ -293,6 +293,7 @@ function buildEnriched() {
       risk10min,
       forecastConfidence: Math.min(1, ((f5.confidence + f10.confidence) / 2) || 0.5),
       crowdExplanation: b.crowdExplanation || "Stable",
+      targetStation: b.targetStation || null,
     };
   });
 }
@@ -320,6 +321,12 @@ app.post("/api/buses/:id/update", (req, res) => {
   if (lat === undefined || lng === undefined || passengers === undefined) {
     return res.status(400).json({ ok: false, message: "Missing lat, lng, or passengers" });
   }
+
+  // Read target station if provided
+  if (req.body.targetStation) {
+  bus.targetStation = req.body.targetStation;
+  }
+
 
   // Update
   bus.lat = lat;
@@ -373,6 +380,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
