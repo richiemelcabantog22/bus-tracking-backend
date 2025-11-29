@@ -19,6 +19,36 @@ let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
   { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
+//---------------------------------------------------------
+
+// --------------------------
+// OSRM FETCH HELPERS
+// --------------------------
+const fetch = require("node-fetch");
+
+async function fetchOSRMRoute(originLat, originLng, targetLat, targetLng) {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${targetLng},${targetLat}?overview=full&geometries=geojson`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!data.routes || !data.routes[0]) return null;
+
+    const coords = data.routes[0].geometry.coordinates;
+
+    // Convert from [lng, lat] → { lat, lng }
+    return coords.map(c => ({ lat: c[1], lng: c[0] }));
+
+  } catch (e) {
+    console.log("OSRM ERROR:", e);
+    return null;
+  }
+}
+
+
+
+
 
 // --------------------------
 // movementMonitoring (unchanged from your file)
@@ -294,6 +324,7 @@ function buildEnriched() {
       forecastConfidence: Math.min(1, ((f5.confidence + f10.confidence) / 2) || 0.5),
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
+      route: b.route || null
     };
   });
 }
@@ -325,6 +356,7 @@ app.post("/api/buses/:id/update", (req, res) => {
   // Read target station if provided
   if (req.body.targetStation) {
   bus.targetStation = req.body.targetStation;
+    
   }
 
 
@@ -337,6 +369,25 @@ app.post("/api/buses/:id/update", (req, res) => {
   if (!bus._lastHistoryValue) bus._lastHistoryValue = bus.passengers;
   updateHistory(bus);
   pushHistoryRecord(bus);
+
+  // ------------------------------
+// OSRM ROUTE UPDATE (if station selected)
+// ------------------------------
+if (bus.targetStation && req.body.targetLat && req.body.targetLng) {
+  console.log("OSRM routing for:", bus.targetStation);
+
+  const route = await fetchOSRMRoute(
+    bus.lat,
+    bus.lng,
+    req.body.targetLat,
+    req.body.targetLng
+  );
+
+  if (route) {
+    bus.route = route;  // save route into bus object
+  }
+}
+
 
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
   bus.movement = movementMonitoring(bus);
@@ -380,6 +431,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
