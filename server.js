@@ -24,25 +24,31 @@ let buses = [
 // --------------------------
 // OSRM FETCH HELPERS
 // --------------------------
-const fetch = require("node-fetch");
 
-async function fetchOSRMRoute(originLat, originLng, targetLat, targetLng) {
+// ---------------------------
+// OSRM Route Fetcher (no node-fetch)
+// ---------------------------
+async function getOSRMRoute(startLat, startLng, endLat, endLng) {
   try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${targetLng},${targetLat}?overview=full&geometries=geojson`;
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
 
-    const response = await fetch(url);
-    const data = await response.json();
+    const res = await fetch(url);  // <-- Native fetch (no node-fetch)
+    const data = await res.json();
 
-    if (!data.routes || !data.routes[0]) return null;
+    if (!data.routes || data.routes.length === 0) {
+      return [];
+    }
 
-    const coords = data.routes[0].geometry.coordinates;
-
-    // Convert from [lng, lat] → { lat, lng }
-    return coords.map(c => ({ lat: c[1], lng: c[0] }));
-
-  } catch (e) {
-    console.log("OSRM ERROR:", e);
-    return null;
+    // GeoJSON format: coordinates = [lng, lat]
+    return data.routes[0].geometry.coordinates.map(coord => ({
+      lat: coord[1],
+      lng: coord[0],
+    }));
+  } catch (err) {
+    console.error("OSRM fetch error:", err);
+    return [];
   }
 }
 
@@ -373,21 +379,14 @@ app.post("/api/buses/:id/update", async (req, res) => {
   // ------------------------------
 // OSRM ROUTE UPDATE (if station selected)
 // ------------------------------
-if (bus.targetStation && req.body.targetLat && req.body.targetLng) {
-  console.log("OSRM routing for:", bus.targetStation);
-
-  const route = await fetchOSRMRoute(
+if (bus.targetStation && bus.stationLat && bus.stationLng) {
+  bus.route = await getOSRMRoute(
     bus.lat,
     bus.lng,
-    req.body.targetLat,
-    req.body.targetLng
+    bus.stationLat,
+    bus.stationLng
   );
-
-  if (route) {
-    bus.route = route;  // save route into bus object
-  }
 }
-
 
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
   bus.movement = movementMonitoring(bus);
@@ -431,6 +430,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
