@@ -376,8 +376,31 @@ app.post("/api/buses/:id/update", async (req, res) => {
   // Read target station if provided
   if (req.body.targetStation) {
   bus.targetStation = req.body.targetStation;
-    
+
+  // ---- STATION LOOKUP TABLE ----
+  const stations = {
+    "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
+    "HM Bus Terminal - Laguna":     { lat: 14.265278, lng: 121.428961 },
+    "HM BUS Terminal - Calamba":     { lat: 14.204603, lng: 121.156868 },
+    "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
+  };
+
+  const dest = stations[bus.targetStation];
+
+  if (dest) {
+    console.log(`🛰 Generating route to ${bus.targetStation}`);
+
+    // REQUEST OSRM ROUTE
+    getOSRMRoute(bus.lat, bus.lng, dest.lat, dest.lng).then((routePath) => {
+      bus.route = routePath || null;
+      console.log("OSRM route:", bus.route ? "OK" : "FAILED");
+
+      // After generating route, push update to all apps
+      io.emit("buses_update", buildEnriched());
+    });
   }
+}
+
 
 
   // Update
@@ -444,6 +467,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
