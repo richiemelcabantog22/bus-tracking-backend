@@ -345,9 +345,6 @@ function buildEnriched() {
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
       route: b.route || null
-      etaSeconds: b.etaSeconds || null,
-      etaText: b.etaText || null,
-
     };
   });
 }
@@ -428,21 +425,6 @@ if (bus.targetStation && bus.stationLat && bus.stationLng) {
   );
 }
 
-  // --- A-13 ETA CALCULATION ---
-if (osrmJson.routes && osrmJson.routes.length > 0) {
-  const routeInfo = osrmJson.routes[0];
-
-  const durationSec = Math.round(routeInfo.duration); // seconds
-  const minutes = Math.max(1, Math.round(durationSec / 60));
-
-  bus.etaSeconds = durationSec;
-  bus.etaText = `${minutes} min`;
-} else {
-  bus.etaSeconds = null;
-  bus.etaText = null;
-}
-
-  
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
   bus.movement = movementMonitoring(bus);
   bus.crowdFlow = predictCrowdFlow(bus);
@@ -485,7 +467,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
 
 
 
