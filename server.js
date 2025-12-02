@@ -37,51 +37,35 @@ function getOSRMRoute(startLat, startLng, endLat, endLng) {
       `https://router.project-osrm.org/route/v1/driving/` +
       `${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
 
-    https
-      .get(url, (res) => {
-        let data = "";
+    https.get(url, (res) => {
+      let raw = "";
 
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            const json = JSON.parse(data);
+      res.on("data", (chunk) => (raw += chunk));
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(raw);
+          if (!json.routes || !json.routes[0])
+            return resolve(null);
 
-            if (!json.routes || !json.routes[0]) return resolve(null);
+          const r = json.routes[0];
 
-            const coords = json.routes[0].geometry.coordinates;
+          const coords = r.geometry.coordinates.map((c) => ({
+            lat: c[1],
+            lng: c[0],
+          }));
 
-            // convert [lng,lat] → [lat,lng]
-            const polyline = coords.map((c) => ({
-              lat: c[1],
-              lng: c[0]
-            }));
-
-            resolve(polyline);
-              // --- A-13 ETA CALCULATION ---
-if (osrmJson.routes && osrmJson.routes.length > 0) {
-  const routeInfo = osrmJson.routes[0];
-
-  const durationSec = Math.round(routeInfo.duration); // seconds
-  const minutes = Math.max(1, Math.round(durationSec / 60));
-
-  bus.etaSeconds = durationSec;
-  bus.etaText = `${minutes} min`;
-} else {
-  bus.etaSeconds = null;
-  bus.etaText = null;
-}
-          } catch (e) {
-            resolve(null);
-          }
-        });
-      })
-      .on("error", () => resolve(null));
+          resolve({
+            polyline: coords,
+            duration: r.duration,  // seconds
+            distance: r.distance,  // meters
+          });
+        } catch {
+          resolve(null);
+        }
+      });
+    }).on("error", () => resolve(null));
   });
-
 }
-
-
-
 
 
 // --------------------------
@@ -407,13 +391,21 @@ app.post("/api/buses/:id/update", async (req, res) => {
     console.log(`🛰 Generating route to ${bus.targetStation}`);
 
     // REQUEST OSRM ROUTE
-    getOSRMRoute(bus.lat, bus.lng, dest.lat, dest.lng).then((routePath) => {
-      bus.route = routePath || null;
-      console.log("OSRM route:", bus.route ? "OK" : "FAILED");
+    const osrm = await getOSRMRoute(bus.lat, bus.lng, dest.lat, dest.lng);
 
-      // After generating route, push update to all apps
-      io.emit("buses_update", buildEnriched());
-    });
+if (osrm) {
+  bus.route = osrm.polyline;
+
+  // -------- ETA FIX --------
+  bus.etaSeconds = Math.round(osrm.duration);
+  bus.etaText = `${Math.max(1, Math.round(osrm.duration / 60))} min`;
+} else {
+  bus.route = null;
+  bus.etaSeconds = null;
+  bus.etaText = null;
+}
+
+io.emit("buses_update", buildEnriched());
   }
 }
 
@@ -483,6 +475,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
