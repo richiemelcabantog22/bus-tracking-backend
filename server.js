@@ -340,7 +340,7 @@ function buildEnriched() {
       forecastConfidence: Math.min(1, ((f5.confidence + f10.confidence) / 2) || 0.5),
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
-      route: b.route || null
+      route: b.route || null,
       etaToStation: b.etaToStation || null,
       routeDuration: b.routeDuration || null,
       routeDistance: b.routeDistance || null,
@@ -488,6 +488,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
