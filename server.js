@@ -57,14 +57,7 @@ function getOSRMRoute(startLat, startLng, endLat, endLng) {
             }));
 
             resolve(polyline);
-          } catch (e) {
-            resolve(null);
-          }
-        });
-      })
-      .on("error", () => resolve(null));
-  });
-  // --- A-13 ETA CALCULATION ---
+              // --- A-13 ETA CALCULATION ---
 if (osrmJson.routes && osrmJson.routes.length > 0) {
   const routeInfo = osrmJson.routes[0];
 
@@ -77,6 +70,13 @@ if (osrmJson.routes && osrmJson.routes.length > 0) {
   bus.etaSeconds = null;
   bus.etaText = null;
 }
+          } catch (e) {
+            resolve(null);
+          }
+        });
+      })
+      .on("error", () => resolve(null));
+  });
 
 }
 
@@ -483,6 +483,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
