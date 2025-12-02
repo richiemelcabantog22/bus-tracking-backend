@@ -31,36 +31,54 @@ let buses = [
 const https = require("https");
 
 // OSRM route fetcher (no node-fetch)
-// -------------------
-// OSRM GET ROUTE
-// -------------------
-async function getOSRMRoute(lat1, lng1, lat2, lng2) {
-  const url = `http://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+function getOSRMRoute(startLat, startLng, endLat, endLng) {
+  return new Promise((resolve) => {
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
 
-  try {
-    const res = await fetch(url);
-    const json = await res.json();
+    https
+      .get(url, (res) => {
+        let data = "";
 
-    if (!json.routes || json.routes.length === 0) return null;
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
 
-    const osrm = json.routes[0];
+            if (!json.routes || !json.routes[0]) return resolve(null);
 
-    return {
-      route: osrm.geometry.coordinates.map(c => ({
-        lng: c[0],
-        lat: c[1]
-      })),
-      distance: osrm.distance,   // meters
-      duration: osrm.duration,   // seconds
-      etaMinutes: Math.round(osrm.duration / 60)
-    };
+            const coords = json.routes[0].geometry.coordinates;
 
-  } catch (err) {
-    console.log("OSRM ERROR:", err);
-    return null;
-  }
+            // convert [lng,lat] → [lat,lng]
+            const polyline = coords.map((c) => ({
+              lat: c[1],
+              lng: c[0]
+            }));
+
+            resolve(polyline);
+          } catch (e) {
+            resolve(null);
+          }
+        });
+      })
+      .on("error", () => resolve(null));
+  });
+  // --- A-13 ETA CALCULATION ---
+if (osrmJson.routes && osrmJson.routes.length > 0) {
+  const routeInfo = osrmJson.routes[0];
+
+  const durationSec = Math.round(routeInfo.duration); // seconds
+  const minutes = Math.max(1, Math.round(durationSec / 60));
+
+  bus.etaSeconds = durationSec;
+  bus.etaText = `${minutes} min`;
+} else {
+  bus.etaSeconds = null;
+  bus.etaText = null;
 }
 
+}
 
 
 
@@ -341,10 +359,8 @@ function buildEnriched() {
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
       route: b.route || null,
-      etaToStation: b.etaToStation || null,
-      routeDuration: b.routeDuration || null,
-      routeDistance: b.routeDistance || null,
-
+      etaSeconds: b.etaSeconds || null,
+      etaText: b.etaText || null,
     };
   });
 }
@@ -425,27 +441,6 @@ if (bus.targetStation && bus.stationLat && bus.stationLng) {
   );
 }
 
-  // When updating a BUS:
-if (bus.targetStation) {
-
-    const stationPos = stationLookup[bus.targetStation];
-
-    if (stationPos) {
-        const osrm = await getOSRMRoute(
-            bus.lat, bus.lng,
-            stationPos.lat, stationPos.lng
-        );
-
-        if (osrm) {
-            bus.route = osrm.route;        // polyline
-            bus.routeDistance = osrm.distance;
-            bus.routeDuration = osrm.duration;
-            bus.etaToStation = osrm.etaMinutes;  // <-- NEW ETA FIELD
-        }
-    }
-}
-
-
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
   bus.movement = movementMonitoring(bus);
   bus.crowdFlow = predictCrowdFlow(bus);
@@ -488,8 +483,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
 
 
 
