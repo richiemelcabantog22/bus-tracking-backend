@@ -31,40 +31,36 @@ let buses = [
 const https = require("https");
 
 // OSRM route fetcher (no node-fetch)
-function getOSRMRoute(startLat, startLng, endLat, endLng) {
-  return new Promise((resolve) => {
-    const url =
-      `https://router.project-osrm.org/route/v1/driving/` +
-      `${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
+// -------------------
+// OSRM GET ROUTE
+// -------------------
+async function getOSRMRoute(lat1, lng1, lat2, lng2) {
+  const url = `http://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
 
-    https
-      .get(url, (res) => {
-        let data = "";
+  try {
+    const res = await fetch(url);
+    const json = await res.json();
 
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            const json = JSON.parse(data);
+    if (!json.routes || json.routes.length === 0) return null;
 
-            if (!json.routes || !json.routes[0]) return resolve(null);
+    const osrm = json.routes[0];
 
-            const coords = json.routes[0].geometry.coordinates;
+    return {
+      route: osrm.geometry.coordinates.map(c => ({
+        lng: c[0],
+        lat: c[1]
+      })),
+      distance: osrm.distance,   // meters
+      duration: osrm.duration,   // seconds
+      etaMinutes: Math.round(osrm.duration / 60)
+    };
 
-            // convert [lng,lat] → [lat,lng]
-            const polyline = coords.map((c) => ({
-              lat: c[1],
-              lng: c[0]
-            }));
-
-            resolve(polyline);
-          } catch (e) {
-            resolve(null);
-          }
-        });
-      })
-      .on("error", () => resolve(null));
-  });
+  } catch (err) {
+    console.log("OSRM ERROR:", err);
+    return null;
+  }
 }
+
 
 
 
@@ -345,6 +341,10 @@ function buildEnriched() {
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
       route: b.route || null
+      etaToStation: b.etaToStation || null,
+      routeDuration: b.routeDuration || null,
+      routeDistance: b.routeDistance || null,
+
     };
   });
 }
@@ -425,6 +425,27 @@ if (bus.targetStation && bus.stationLat && bus.stationLng) {
   );
 }
 
+  // When updating a BUS:
+if (bus.targetStation) {
+
+    const stationPos = stationLookup[bus.targetStation];
+
+    if (stationPos) {
+        const osrm = await getOSRMRoute(
+            bus.lat, bus.lng,
+            stationPos.lat, stationPos.lng
+        );
+
+        if (osrm) {
+            bus.route = osrm.route;        // polyline
+            bus.routeDistance = osrm.distance;
+            bus.routeDuration = osrm.duration;
+            bus.etaToStation = osrm.etaMinutes;  // <-- NEW ETA FIELD
+        }
+    }
+}
+
+
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
   bus.movement = movementMonitoring(bus);
   bus.crowdFlow = predictCrowdFlow(bus);
@@ -467,6 +488,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
