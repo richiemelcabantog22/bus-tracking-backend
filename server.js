@@ -322,7 +322,7 @@ function buildEnriched() {
 // A-14 Delay Detection Inputs
 // -----------------------------
 const etaSec = b.etaSecondsTarget || null;
-const etaTxt = b.etaTextTarget || null;
+const etaTxt = etaSec ? `${Math.round(etaSec / 60)} min` : "N/A";
 
 // Compute delay state only if ETA exists
 const delayState = (() => {
@@ -358,7 +358,6 @@ const delayState = (() => {
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
       route: b.route || null,
-      // A-13 ETA FIELDS
       etaSeconds: b.etaSeconds || null,
       etaText: b.etaText || null,
       etaSecondsTarget: etaSec,
@@ -432,8 +431,6 @@ io.emit("buses_update", buildEnriched());
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
-  b.etaSecondsTarget = bus.etaSeconds;
-  b.etaTextTarget = bus.etaText;
   // push history record for forecasting
   if (!bus._lastHistoryValue) bus._lastHistoryValue = bus.passengers;
   updateHistory(bus);
@@ -494,6 +491,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
