@@ -327,14 +327,18 @@ function buildEnriched() {
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
-    const delayState = (() => {
-  if (!b.etaSecondsTarget) return "unknown";
+    // -----------------------------
+// A-14 Delay Detection (clean version)
+// -----------------------------
+let delayState = "unknown";
 
-  const eta = b.etaSecondsTarget; // seconds
-  if (eta > 1200) return "late";      // > 20 mins
-  if (eta < 240) return "ahead";      // < 4 mins
-  return "on-time";                   // normal
-})();
+if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
+  const eta = b.etaSeconds;
+
+  if (eta > 1200) delayState = "late";        // more than 20 min
+  else if (eta < 240) delayState = "ahead";   // less than 4 min
+  else delayState = "on-time";                // normal
+}
     return {
       ...b,
       predicted,
@@ -354,6 +358,7 @@ function buildEnriched() {
       route: b.route || null,
       etaSeconds: b.etaSeconds || null,
       etaText: b.etaText || null,
+      delayState,
     };
   });
 }
@@ -417,8 +422,6 @@ if (osrm) {
 io.emit("buses_update", buildEnriched());
   }
 }
-
-
 
   // Update
   bus.lat = lat;
@@ -485,6 +488,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
