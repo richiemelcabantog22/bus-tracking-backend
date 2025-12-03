@@ -378,54 +378,7 @@ app.post("/api/buses/:id/update", async (req, res) => {
   }
 
   // Read target station if provided
-  if (req.body.targetStation) {
-  bus.targetStation = req.body.targetStation;
-
-  // ---- STATION LOOKUP TABLE ----
-  const stations = {
-    "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
-    "HM Bus Terminal - Laguna":     { lat: 14.265278, lng: 121.428961 },
-    "HM BUS Terminal - Calamba":     { lat: 14.204603, lng: 121.156868 },
-    "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
-  };
-
-  const dest = stations[bus.targetStation];
-
-  if (dest) {
-    console.log(`🛰 Generating route to ${bus.targetStation}`);
-
-    // REQUEST OSRM ROUTE
-    const osrm = await getOSRMRoute(bus.lat, bus.lng, dest.lat, dest.lng);
-
-if (osrm) {
-  bus.route = osrm.polyline;
-
-  // -------- ETA FIX --------
-  bus.etaSeconds = Math.round(osrm.duration);
-  bus.etaText = `${Math.max(1, Math.round(osrm.duration / 60))} min`;
-} else {
-  bus.route = null;
-  bus.etaSeconds = null;
-  bus.etaText = null;
-}
-
-io.emit("buses_update", buildEnriched());
-  }
-}
-
-  // Update
-  bus.lat = lat;
-  bus.lng = lng;
-  bus.passengers = passengers;
-  // push history record for forecasting
-  if (!bus._lastHistoryValue) bus._lastHistoryValue = bus.passengers;
-  updateHistory(bus);
-  pushHistoryRecord(bus);
-
-// ------------------------------
-// OSRM ROUTE UPDATE (always lookup station coords)
-// ------------------------------
-if (bus.targetStation) {
+  if (bus.targetStation) {
 
   const stations = {
     "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
@@ -450,6 +403,17 @@ if (bus.targetStation) {
     }
   }
 }
+  // Update
+  bus.lat = lat;
+  bus.lng = lng;
+  bus.passengers = passengers;
+  // push history record for forecasting
+  if (!bus._lastHistoryValue) bus._lastHistoryValue = bus.passengers;
+  updateHistory(bus);
+  pushHistoryRecord(bus);
+
+
+
 
 
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
@@ -495,6 +459,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
