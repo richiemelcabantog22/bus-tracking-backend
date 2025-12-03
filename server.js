@@ -309,14 +309,7 @@ function updateHistory(bus) {
 // --------------------------
 function buildEnriched() {
   return buses.map(b => {
-    const delayState = (() => {
-  if (!b.etaSecondsTarget) return "unknown";
-
-  const eta = b.etaSecondsTarget; // seconds
-  if (eta > 1200) return "late";      // > 20 mins
-  if (eta < 240) return "ahead";      // < 4 mins
-  return "on-time";                   // normal
-})();
+    
     // ensure historyRecords exist
     if (!b._historyRecords) b._historyRecords = [];
     // compute base fields
@@ -459,6 +452,15 @@ if (bus.targetStation && bus.stationLat && bus.stationLng) {
   bus.crowdExplanation = "No explanation available";
 }
 
+  const delayState = (() => {
+  if (!b.etaSecondsTarget) return "unknown";
+
+  const eta = b.etaSecondsTarget; // seconds
+  if (eta > 1200) return "late";      // > 20 mins
+  if (eta < 240) return "ahead";      // < 4 mins
+  return "on-time";                   // normal
+})();
+
   // ----------------------------------------------
 // FIXED PASSENGER HISTORY LOGIC (A-8 important)
 // ----------------------------------------------
@@ -484,6 +486,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
