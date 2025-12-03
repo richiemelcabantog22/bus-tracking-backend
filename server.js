@@ -318,6 +318,21 @@ function buildEnriched() {
     const predicted = predictPassengers(b);
     const movement = movementMonitoring(b);
     const crowdFlow = predictCrowdFlow(b);
+    // -----------------------------
+// A-14 Delay Detection Inputs
+// -----------------------------
+const etaSec = b.etaSecondsTarget || null;
+const etaTxt = b.etaTextTarget || null;
+
+// Compute delay state only if ETA exists
+const delayState = (() => {
+  if (!etaSec) return "unknown"; // no ETA yet
+
+  if (etaSec > 1200) return "late";       // > 20 min late
+  if (etaSec < 240) return "ahead";       // < 4 min ahead
+  return "on-time";                       // otherwise OK
+})();
+
 
     // forecasts
     const f5 = forecastPassengers(b, 5);
@@ -327,14 +342,6 @@ function buildEnriched() {
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
-    const delayState = (() => {
-  if (!b.etaSecondsTarget) return "unknown";
-
-  const eta = b.etaSecondsTarget; // seconds
-  if (eta > 1200) return "late";      // > 20 mins
-  if (eta < 240) return "ahead";      // < 4 mins
-  return "on-time";                   // normal
-})();
     return {
       ...b,
       predicted,
@@ -347,13 +354,16 @@ function buildEnriched() {
       predicted10min,
       risk5min,
       risk10min,
-      delayState,
       forecastConfidence: Math.min(1, ((f5.confidence + f10.confidence) / 2) || 0.5),
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
       route: b.route || null,
+      // A-13 ETA FIELDS
       etaSeconds: b.etaSeconds || null,
       etaText: b.etaText || null,
+      etaSecondsTarget: etaSec,
+      etaTextTarget: etaTxt,
+      delayState,
     };
   });
 }
@@ -485,6 +495,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
