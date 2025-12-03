@@ -309,6 +309,14 @@ function updateHistory(bus) {
 // --------------------------
 function buildEnriched() {
   return buses.map(b => {
+    const delayState = (() => {
+  if (!b.etaSecondsTarget) return "unknown";
+
+  const eta = b.etaSecondsTarget; // seconds
+  if (eta > 1200) return "late";      // > 20 mins
+  if (eta < 240) return "ahead";      // < 4 mins
+  return "on-time";                   // normal
+})();
     // ensure historyRecords exist
     if (!b._historyRecords) b._historyRecords = [];
     // compute base fields
@@ -339,6 +347,7 @@ function buildEnriched() {
       predicted10min,
       risk5min,
       risk10min,
+      delayState,
       forecastConfidence: Math.min(1, ((f5.confidence + f10.confidence) / 2) || 0.5),
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
@@ -475,6 +484,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
