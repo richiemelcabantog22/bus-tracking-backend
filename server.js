@@ -426,17 +426,14 @@ if (osrm) {
 
 io.emit("buses_update", buildEnriched());
   }
-  b.etaSecondsTarget = bus.etaSeconds;
-  b.etaTextTarget = bus.etaText;
 }
-
-
 
   // Update
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
-  
+  b.etaSecondsTarget = bus.etaSeconds;
+  b.etaTextTarget = bus.etaText;
   // push history record for forecasting
   if (!bus._lastHistoryValue) bus._lastHistoryValue = bus.passengers;
   updateHistory(bus);
@@ -497,6 +494,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
