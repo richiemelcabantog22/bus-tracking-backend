@@ -318,9 +318,6 @@ function buildEnriched() {
     const predicted = predictPassengers(b);
     const movement = movementMonitoring(b);
     const crowdFlow = predictCrowdFlow(b);
-    // -----------------------------
-// A-14 Delay Detection Inputs
-// -----------------------------
 
     // forecasts
     const f5 = forecastPassengers(b, 5);
@@ -330,6 +327,14 @@ function buildEnriched() {
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
+    const delayState = (() => {
+  if (!b.etaSecondsTarget) return "unknown";
+
+  const eta = b.etaSecondsTarget; // seconds
+  if (eta > 1200) return "late";      // > 20 mins
+  if (eta < 240) return "ahead";      // < 4 mins
+  return "on-time";                   // normal
+})();
     return {
       ...b,
       predicted,
@@ -342,13 +347,13 @@ function buildEnriched() {
       predicted10min,
       risk5min,
       risk10min,
+      delayState,
       forecastConfidence: Math.min(1, ((f5.confidence + f10.confidence) / 2) || 0.5),
       crowdExplanation: b.crowdExplanation || "Stable",
       targetStation: b.targetStation || null,
       route: b.route || null,
       etaSeconds: b.etaSeconds || null,
       etaText: b.etaText || null,
-      delayState,
     };
   });
 }
@@ -378,43 +383,64 @@ app.post("/api/buses/:id/update", async (req, res) => {
   }
 
   // Read target station if provided
-  if (bus.targetStation) {
+  if (req.body.targetStation) {
+  bus.targetStation = req.body.targetStation;
 
+  // ---- STATION LOOKUP TABLE ----
   const stations = {
     "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
-    "HM Bus Terminal - Laguna":              { lat: 14.265278, lng: 121.428961 },
-    "HM BUS Terminal - Calamba":             { lat: 14.204603, lng: 121.156868 },
-    "HM Transport Inc. Quezon City":         { lat: 14.623390644859652, lng: 121.04877752268187 },
+    "HM Bus Terminal - Laguna":     { lat: 14.265278, lng: 121.428961 },
+    "HM BUS Terminal - Calamba":     { lat: 14.204603, lng: 121.156868 },
+    "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
   };
 
   const dest = stations[bus.targetStation];
 
   if (dest) {
+    console.log(`🛰 Generating route to ${bus.targetStation}`);
+
+    // REQUEST OSRM ROUTE
     const osrm = await getOSRMRoute(bus.lat, bus.lng, dest.lat, dest.lng);
 
-    if (osrm) {
-      bus.route = osrm.polyline;
-      bus.etaSeconds = Math.round(osrm.duration);
-      bus.etaText = `${Math.max(1, Math.round(osrm.duration/60))} min`;
-    } else {
-      bus.route = null;
-      bus.etaSeconds = null;
-      bus.etaText = null;
-    }
+if (osrm) {
+  bus.route = osrm.polyline;
+
+  // -------- ETA FIX --------
+  bus.etaSeconds = Math.round(osrm.duration);
+  bus.etaText = `${Math.max(1, Math.round(osrm.duration / 60))} min`;
+} else {
+  bus.route = null;
+  bus.etaSeconds = null;
+  bus.etaText = null;
+}
+
+io.emit("buses_update", buildEnriched());
   }
 }
+
+
+
   // Update
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
+  
   // push history record for forecasting
   if (!bus._lastHistoryValue) bus._lastHistoryValue = bus.passengers;
   updateHistory(bus);
   pushHistoryRecord(bus);
 
-
-
-
+  // ------------------------------
+// OSRM ROUTE UPDATE (if station selected)
+// ------------------------------
+if (bus.targetStation && bus.stationLat && bus.stationLng) {
+  bus.route = await getOSRMRoute(
+    bus.lat,
+    bus.lng,
+    bus.stationLat,
+    bus.stationLng
+  );
+}
 
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
   bus.movement = movementMonitoring(bus);
@@ -459,13 +485,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-
-
-
 
 
 
