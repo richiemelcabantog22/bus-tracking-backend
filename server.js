@@ -321,18 +321,6 @@ function buildEnriched() {
     // -----------------------------
 // A-14 Delay Detection Inputs
 // -----------------------------
-const etaSec = b.etaSecondsTarget || null;
-const etaTxt = etaSec ? `${Math.round(etaSec / 60)} min` : "N/A";
-
-// Compute delay state only if ETA exists
-const delayState = (() => {
-  if (!etaSec) return "unknown"; // no ETA yet
-
-  if (etaSec > 1200) return "late";       // > 20 min late
-  if (etaSec < 240) return "ahead";       // < 4 min ahead
-  return "on-time";                       // otherwise OK
-})();
-
 
     // forecasts
     const f5 = forecastPassengers(b, 5);
@@ -360,9 +348,6 @@ const delayState = (() => {
       route: b.route || null,
       etaSeconds: b.etaSeconds || null,
       etaText: b.etaText || null,
-      etaSecondsTarget: etaSec,
-      etaTextTarget: etaTxt,
-      delayState,
     };
   });
 }
@@ -491,6 +476,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
