@@ -303,6 +303,56 @@ function updateHistory(bus) {
   }
 }
 
+// --------------------------------------
+function delayReasonAI(bus) {
+  // If no ETA, we cannot predict anything
+  if (!bus.etaSeconds || !bus.targetStation) {
+    return "Unknown – no route or ETA";
+  }
+
+  const eta = bus.etaSeconds;
+  const crowd = bus.passengers;
+  const move = bus.movement || "stable";
+
+  // ------------- Rule-Based AI -------------
+  // 1) Overcrowding slowdowns
+  if (crowd >= 32) {
+    return "Delay due to high passenger load";
+  }
+
+  // 2) Rush hour traffic based on time
+  const hour = new Date().getHours();
+  if ((hour >= 6 && hour <= 9) || (hour >= 17 && hour <= 20)) {
+    if (eta > 900) return "Heavy rush-hour traffic";
+  }
+
+  // 3) Movement-based reasons
+  if (move === "idle") {
+    return "Possible stopover or traffic jam";
+  }
+  if (move === "slowdown") {
+    return "Slow traffic conditions";
+  }
+
+  // 4) GPS anomalies
+  if (bus.anomalies && bus.anomalies.find(a => a.code === "gps_jump")) {
+    return "GPS instability affecting ETA";
+  }
+
+  // 5) Spike in passengers recently recorded
+  if (bus._historyRecords && bus._historyRecords.length >= 2) {
+    const last = bus._historyRecords.at(-1).p;
+    const prev = bus._historyRecords.at(-2).p;
+    if (last - prev >= 8) {
+      return "Passenger loading delay";
+    }
+  }
+
+  // Default
+  return "Normal conditions";
+}
+
+
 
 // --------------------------
 // Build enriched bus data (includes forecasts)
@@ -359,6 +409,7 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       etaSeconds: b.etaSeconds || null,
       etaText: b.etaText || null,
       delayState,
+      delayReason: delayReasonAI(b),
     };
   });
 }
@@ -488,6 +539,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
