@@ -426,6 +426,8 @@ if (osrm) {
 
 io.emit("buses_update", buildEnriched());
   }
+  b.etaSecondsTarget = bus.etaSeconds;
+  b.etaTextTarget = bus.etaText;
 }
 
 
@@ -495,6 +497,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
