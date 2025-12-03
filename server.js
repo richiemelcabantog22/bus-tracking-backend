@@ -327,7 +327,14 @@ function buildEnriched() {
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
+    const delayState = (() => {
+  if (!b.etaSecondsTarget) return "unknown";
 
+  const eta = b.etaSecondsTarget; // seconds
+  if (eta > 1200) return "late";      // > 20 mins
+  if (eta < 240) return "ahead";      // < 4 mins
+  return "on-time";                   // normal
+})();
     return {
       ...b,
       predicted,
@@ -360,14 +367,6 @@ app.get("/", (req, res) => {
 
 app.get("/api/buses", (req, res) => {
   res.json(buildEnriched());
-    const delayState = (() => {
-  if (!b.etaSecondsTarget) return "unknown";
-
-  const eta = b.etaSecondsTarget; // seconds
-  if (eta > 1200) return "late";      // > 20 mins
-  if (eta < 240) return "ahead";      // < 4 mins
-  return "on-time";                   // normal
-})();
 });
 
 // Update route — stores a history record and broadcasts enriched data
@@ -486,6 +485,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
