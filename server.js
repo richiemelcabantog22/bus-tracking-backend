@@ -394,6 +394,71 @@ function delayReasonAI(bus) {
   // Default
   return "Normal conditions";
 }
+// -------------------------------------------
+
+function computeDriverSafetyScore(bus) {
+  let score = 100;
+  const notes = [];
+
+  // 1. Drive Pattern Weighting (from A-16)
+  const dp = bus.drivePattern || "unknown";
+
+  if (dp === "erratic") {
+    score -= 25;
+    notes.push("Erratic movement detected");
+  } else if (dp === "stop_go") {
+    score -= 15;
+    notes.push("Frequent stop-and-go driving");
+  } else if (dp === "smooth") {
+    score -= 0;
+    notes.push("Smooth driving");
+  }
+
+  // 2. Anomaly Penalties
+  if (bus.anomalies && bus.anomalies.length > 0) {
+    for (const a of bus.anomalies) {
+      if (a.code === "gps_jump") {
+        score -= 10;
+        notes.push("Irregular GPS movement");
+      }
+      if (a.code === "spike") {
+        score -= 10;
+        notes.push("Passenger spike event");
+      }
+      if (a.code === "overcrowding") {
+        score -= 5;
+        notes.push("Overcrowding detected");
+      }
+    }
+  }
+
+  // 3. Passenger Comfort (crowdFlow)
+  if (bus.crowdFlow === "spike") {
+    score -= 5;
+    notes.push("Sudden passenger increase");
+  }
+  if (bus.crowdFlow === "drop") {
+    score -= 3;
+    notes.push("Abrupt off-boarding");
+  }
+
+  // Limit score
+  if (score < 0) score = 0;
+  if (score > 100) score = 100;
+
+  // Convert score → rating
+  let rating = "Good";
+  if (score >= 90) rating = "Excellent";
+  else if (score >= 75) rating = "Good";
+  else if (score >= 55) rating = "Fair";
+  else rating = "Poor";
+
+  return {
+    safetyScore: score,
+    safetyRating: rating,
+    safetyNotes: notes,
+  };
+}
 
 
 
@@ -417,6 +482,7 @@ function buildEnriched() {
     const f10 = forecastPassengers(b, 10);
     const predicted5min = f5.predicted;
     const predicted10min = f10.predicted;
+    const safety = computeDriverSafetyScore(b);
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
@@ -454,6 +520,9 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       delayState,
       delayReason: delayReasonAI(b),
       drivePattern,
+      safetyScore: safety.safetyScore,
+      safetyRating: safety.safetyRating,
+      safetyNotes: safety.safetyNotes,
     };
   });
 }
@@ -583,6 +652,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
