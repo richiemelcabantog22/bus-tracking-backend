@@ -188,6 +188,49 @@ function explainCrowdChange(bus) {
 
   return "Stable passenger flow";
 }
+// -------------------------------
+
+function classifyDrivePattern(bus) {
+  if (!bus._speedHistory) bus._speedHistory = [];
+
+  // compute speed (meters/sec)
+  const now = Date.now();
+  const lastLat = bus._speedLat ?? bus.lat;
+  const lastLng = bus._speedLng ?? bus.lng;
+  const dt = ((now - (bus._speedTime || now)) / 1000) || 1;
+
+  const dist =
+    Math.abs(bus.lat - lastLat) + Math.abs(bus.lng - lastLng);
+  const meters = dist * 111000;
+  const speed = meters / dt;
+
+  // keep history
+  bus._speedHistory.push(speed);
+  if (bus._speedHistory.length > 10)
+    bus._speedHistory.shift();
+
+  // update trackers
+  bus._speedLat = bus.lat;
+  bus._speedLng = bus.lng;
+  bus._speedTime = now;
+
+  if (bus._speedHistory.length < 4) return "unknown";
+
+  const avg = bus._speedHistory.reduce((a, b) => a + b) / bus._speedHistory.length;
+  const variance = bus._speedHistory
+      .map(v => Math.abs(v - avg))
+      .reduce((a, b) => a + b) / bus._speedHistory.length;
+
+  // patterns
+  if (variance < 0.4 && avg > 4) return "Smooth";
+  if (variance > 2.2) return "Aggressive";
+  if (avg < 0.5 && variance < 0.3) return "Idle-too-long";
+  if (avg > 0.5 && avg < 2 && variance > 0.8) return "Stop-and-go";
+  if (avg < 0.8 && variance > 1.0) return "Drifting";
+
+  return "Smooth";
+}
+
 
 
 // --------------------------
@@ -281,9 +324,9 @@ function forecastPassengers(bus, minutes) {
 }
 
 function riskLevelFromCount(count) {
-  if (count >= 36) return "critical";
-  if (count >= 30) return "warning";
-  return "normal";
+  if (count >= 36) return "Critical";
+  if (count >= 30) return "Warning";
+  return "Normal";
 }
 // -----------------------------------------------
 
@@ -368,7 +411,7 @@ function buildEnriched() {
     const predicted = predictPassengers(b);
     const movement = movementMonitoring(b);
     const crowdFlow = predictCrowdFlow(b);
-
+    const drivePattern = classifyDrivePattern(b);
     // forecasts
     const f5 = forecastPassengers(b, 5);
     const f10 = forecastPassengers(b, 10);
@@ -410,6 +453,7 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       etaText: b.etaText || null,
       delayState,
       delayReason: delayReasonAI(b),
+      drivePattern,
     };
   });
 }
@@ -539,6 +583,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
