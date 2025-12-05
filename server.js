@@ -30,19 +30,6 @@ let buses = [
 // ---------------------------
 const https = require("https");
 
-// --- helper: distance meters (Haversine)
-function distanceMeters(lat1, lng1, lat2, lng2) {
-  const R = 6371000; // meters
-  const toRad = (d) => d * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lng2 - lng1);
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c;
-}
-
 // OSRM route fetcher (no node-fetch)
 function getOSRMRoute(startLat, startLng, endLat, endLng) {
   return new Promise((resolve) => {
@@ -536,8 +523,6 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       safetyScore: safety.safetyScore,
       safetyRating: safety.safetyRating,
       safetyNotes: safety.safetyNotes,
-      atStation: b.atStation || false,
-      dockedStation: b.dockedStation || null,
     };
   });
 }
@@ -626,32 +611,6 @@ if (bus.targetStation && bus.stationLat && bus.stationLng) {
   );
 }
 
-    // --- STATION DOCKING DETECTION ---
-  // threshold in meters
-  const DOCK_THRESHOLD_M = 120; // adjust (e.g., 80-150)
-
-  // default
-  bus.atStation = false;
-  bus.dockedStation = null;
-
-  // find nearest station and distance
-  let nearestName = null;
-  let nearestDist = 1e9;
-  for (const [name, s] of Object.entries(STATIONS)) {
-    const d = distanceMeters(bus.lat, bus.lng, s.lat, s.lng);
-    if (d < nearestDist) {
-      nearestDist = d;
-      nearestName = name;
-    }
-  }
-
-  if (nearestName && nearestDist <= DOCK_THRESHOLD_M) {
-    bus.atStation = true;
-    bus.dockedStation = nearestName;
-  } else {
-    bus.atStation = false;
-    bus.dockedStation = null;
-  }
 
   // update derived fields (movement and crowdFlow are updated inside buildEnriched, but we can precompute)
   bus.movement = movementMonitoring(bus);
@@ -665,26 +624,6 @@ if (bus.targetStation && bus.stationLat && bus.stationLng) {
     console.error("Socket emit error:", err);
   }
   
-// ALSO emit a small station update event (optional but useful to update UI immediately)
-  if (bus.atStation) {
-    io.emit("station_update", {
-      station: bus.dockedStation,
-      bus: {
-        id: bus.id,
-        lat: bus.lat,
-        lng: bus.lng,
-        passengers: bus.passengers,
-        alertLevel: bus.alertLevel || "normal"
-      }
-    });
-  } else {
-    // removal event so UI can remove from station list if needed
-    io.emit("station_update", {
-      station: null,
-      bus: { id: bus.id },
-      action: "undock"
-    });
-  }
 
   try {
   bus.crowdExplanation = explainCrowdChange(bus);
@@ -718,6 +657,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
