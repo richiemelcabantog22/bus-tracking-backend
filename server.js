@@ -523,7 +523,6 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       safetyScore: safety.safetyScore,
       safetyRating: safety.safetyRating,
       safetyNotes: safety.safetyNotes,
-      isAtStation: b.isAtStation || null,
     };
   });
 }
@@ -593,21 +592,6 @@ io.emit("buses_update", buildEnriched());
   bus.lng = lng;
   bus.passengers = passengers;
 
-  // -----------------------
-// STATION DOCKING DETECTION
-// -----------------------
-b.isAtStation = null;
-
-for (const [name, s] of Object.entries(stations)) {
-  const dist =
-    Math.abs(b.lat - s.lat) * 111000 +
-    Math.abs(b.lng - s.lng) * 111000; // approx meters
-
-  if (dist < 60) {           // within 60 meters = inside station
-    b.isAtStation = name;    // mark which station
-    break;
-  }
-}
 
   
   // push history record for forecasting
@@ -670,6 +654,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
