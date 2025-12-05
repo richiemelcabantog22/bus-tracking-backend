@@ -19,11 +19,49 @@ let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
   { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
+
 //---------------------------------------------------------
+// ----------- A-18 Station Definitions -------------
+const STATION = {
+  "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
+  "HM Bus Terminal - Laguna": { lat: 14.265278, lng: 121.428961 },
+  "HM BUS Terminal - Calamba": { lat: 14.204603, lng: 121.156868 },
+  "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
+};
+
+// Distance helper
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI/180;
+  const dLng = (lng2 - lng1) * Math.PI/180;
+  const a =
+    Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180) *
+    Math.cos(lat2*Math.PI/180) *
+    Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 // --------------------------
-// OSRM FETCH HELPERS
+// H HELPERS
 // --------------------------
+// ----------- A-18 — Station Docking Logic -------------
+function checkStationDocking(bus) {
+  bus.isAtStation = false;
+  bus.currentStation = null;
+
+  for (const name in STATION) {
+    const s = STATION[name];
+    const dist = distanceMeters(bus.lat, bus.lng, s.lat, s.lng);
+
+    if (dist <= 35) {          // inside 35 meters = docked
+      bus.isAtStation = true;
+      bus.currentStation = name;
+      return;
+    }
+  }
+}
+
 
 // ---------------------------
 // OSRM Route Fetcher (no node-fetch)
@@ -523,6 +561,8 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       safetyScore: safety.safetyScore,
       safetyRating: safety.safetyRating,
       safetyNotes: safety.safetyNotes,
+      isAtStation: b.isAtStation || false,
+      currentStation: b.currentStation || null,
     };
   });
 }
@@ -591,7 +631,8 @@ io.emit("buses_update", buildEnriched());
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
-
+  // --- A-18 check docking ---
+checkStationDocking(bus);
 
   
   // push history record for forecasting
@@ -657,6 +698,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
