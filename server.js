@@ -21,15 +21,6 @@ let buses = [
 ];
 //---------------------------------------------------------
 // ------------------------
-// FIXED STATION LIST
-// ------------------------
-const STATIONS = {
-  "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
-  "HM Bus Terminal - Laguna": { lat: 14.265278, lng: 121.428961 },
-  "HM BUS Terminal - Calamba": { lat: 14.204603, lng: 121.156868 },
-  "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
-};
-
 // ---------------------------
 // OSRM Route Fetcher (no node-fetch)
 // ---------------------------
@@ -493,21 +484,6 @@ function buildEnriched() {
     const risk10min = riskLevelFromCount(predicted10min);
 
     // -----------------------
-// A-18 STATION DOCKING
-// -----------------------
-let isAtStation = false;
-let currentStation = null;
-
-if (b.targetStation && STATIONS[b.targetStation]) {
-  const s = STATIONS[b.targetStation];
-  const dist = distanceMeters(b.lat, b.lng, s.lat, s.lng);
-
-  if (dist <= 30) {      // 30 meters radius
-    isAtStation = true;
-    currentStation = b.targetStation;
-  }
-}
-  
     // -----------------------------
 // A-14 Delay Detection (clean version)
 // -----------------------------
@@ -564,11 +540,6 @@ app.get("/api/buses", (req, res) => {
 
 //----------------------------
 
-function distanceMeters(lat1, lng1, lat2, lng2) {
-  const dx = (lat1 - lat2) * 111000;
-  const dy = (lng1 - lng2) * 111000;
-  return Math.sqrt(dx * dx + dy * dy);
-}
 
 
 // Update route — stores a history record and broadcasts enriched data
@@ -584,12 +555,19 @@ app.post("/api/buses/:id/update", async (req, res) => {
     return res.status(400).json({ ok: false, message: "Missing lat, lng, or passengers" });
   }
 
+  const stations = {
+  "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
+  "HM Bus Terminal - Laguna":     { lat: 14.265278, lng: 121.428961 },
+  "HM BUS Terminal - Calamba":     { lat: 14.204603, lng: 121.156868 },
+  "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
+};
+
   // Read target station if provided
   if (req.body.targetStation) {
   bus.targetStation = req.body.targetStation;
 
 
-  const dest = STATIONS[bus.targetStation];
+  const dest = stations[bus.targetStation];
 
   if (dest) {
     console.log(`🛰 Generating route to ${bus.targetStation}`);
@@ -612,11 +590,45 @@ if (osrm) {
 io.emit("buses_update", buildEnriched());
   }
 }
+  // -------------------------------------------------------
+// A-18: STATION PROXIMITY DETECTION (always check)
+// -------------------------------------------------------
+bus.isAtStation = false;
+bus.currentStation = null;
+
+const STATION_RADIUS = 80; // meters
+
+function distanceMeters(aLat, aLng, bLat, bLng) {
+  const R = 6371000;
+  const dLat = (bLat - aLat) * Math.PI / 180;
+  const dLng = (bLng - aLng) * Math.PI / 180;
+  const lat1 = aLat * Math.PI / 180;
+  const lat2 = bLat * Math.PI / 180;
+
+  const h = Math.sin(dLat/2)**2 +
+            Math.cos(lat1) * Math.cos(lat2) *
+            Math.sin(dLng/2)**2;
+
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// check which station bus is near
+Object.entries(stations).forEach(([name, pos]) => {
+  const d = distanceMeters(bus.lat, bus.lng, pos.lat, pos.lng);
+
+  if (d <= STATION_RADIUS) {
+    bus.isAtStation = true;
+    bus.currentStation = name;
+  }
+});
+
 
   // Update
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
+
+  
 
 
   
@@ -683,6 +695,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
