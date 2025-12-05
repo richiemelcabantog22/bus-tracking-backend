@@ -588,13 +588,6 @@ app.post("/api/buses/:id/update", async (req, res) => {
   if (req.body.targetStation) {
   bus.targetStation = req.body.targetStation;
 
-  // ---- STATION LOOKUP TABLE ----
-  const stations = {
-    "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
-    "HM Bus Terminal - Laguna":     { lat: 14.265278, lng: 121.428961 },
-    "HM BUS Terminal - Calamba":     { lat: 14.204603, lng: 121.156868 },
-    "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
-  };
 
   const dest = STATIONS[bus.targetStation];
 
@@ -690,6 +683,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
