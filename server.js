@@ -521,7 +521,7 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       safetyScore: safety.safetyScore,
       safetyRating: safety.safetyRating,
       safetyNotes: safety.safetyNotes,
-      isAtStation: b.isAtStation,
+      isAtStation: b.isAtStation || null,
       currentStation: b.currentStation || "Unknown",
     };
   });
@@ -695,6 +695,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
