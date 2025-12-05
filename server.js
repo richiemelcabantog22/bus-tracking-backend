@@ -482,6 +482,24 @@ function buildEnriched() {
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
+// -----------------------
+// A-18 STATION DOCKING
+// -----------------------
+let isAtStation = false;
+let currentStation = null;
+
+if (b.targetStation && stations[b.targetStation]) {
+  const s = stations[b.targetStation];
+  const dist = distanceMeters(b.lat, b.lng, s.lat, s.lng);
+
+  if (dist <= 30) {      // 30 meters radius
+    isAtStation = true;
+    currentStation = b.targetStation;
+  }
+}
+
+
+    
     // -----------------------------
 // A-14 Delay Detection (clean version)
 // -----------------------------
@@ -519,6 +537,8 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       safetyScore: safety.safetyScore,
       safetyRating: safety.safetyRating,
       safetyNotes: safety.safetyNotes,
+      isAtStation,
+      currentStation,
     };
   });
 }
@@ -533,6 +553,15 @@ app.get("/", (req, res) => {
 app.get("/api/buses", (req, res) => {
   res.json(buildEnriched());
 });
+
+//----------------------------
+
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const dx = (lat1 - lat2) * 111000;
+  const dy = (lng1 - lng2) * 111000;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 
 // Update route — stores a history record and broadcasts enriched data
 app.post("/api/buses/:id/update", async (req, res) => {
