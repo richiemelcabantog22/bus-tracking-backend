@@ -20,6 +20,15 @@ let buses = [
   { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
 //---------------------------------------------------------
+// ------------------------
+// FIXED STATION LIST
+// ------------------------
+const STATIONS = {
+  "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
+  "HM Bus Terminal - Laguna": { lat: 14.265278, lng: 121.428961 },
+  "HM BUS Terminal - Calamba": { lat: 14.204603, lng: 121.156868 },
+  "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
+};
 
 // ---------------------------
 // OSRM Route Fetcher (no node-fetch)
@@ -482,14 +491,15 @@ function buildEnriched() {
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
-// -----------------------
+
+    // -----------------------
 // A-18 STATION DOCKING
 // -----------------------
 let isAtStation = false;
 let currentStation = null;
 
-if (b.targetStation && stations[b.targetStation]) {
-  const s = stations[b.targetStation];
+if (b.targetStation && STATIONS[b.targetStation]) {
+  const s = STATIONS[b.targetStation];
   const dist = distanceMeters(b.lat, b.lng, s.lat, s.lng);
 
   if (dist <= 30) {      // 30 meters radius
@@ -497,9 +507,7 @@ if (b.targetStation && stations[b.targetStation]) {
     currentStation = b.targetStation;
   }
 }
-
-
-    
+  
     // -----------------------------
 // A-14 Delay Detection (clean version)
 // -----------------------------
@@ -588,7 +596,7 @@ app.post("/api/buses/:id/update", async (req, res) => {
     "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
   };
 
-  const dest = stations[bus.targetStation];
+  const dest = STATIONS[bus.targetStation];
 
   if (dest) {
     console.log(`🛰 Generating route to ${bus.targetStation}`);
@@ -682,6 +690,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
