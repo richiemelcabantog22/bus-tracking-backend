@@ -20,7 +20,11 @@ let buses = [
   { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
 ];
 //---------------------------------------------------------
-// ------------------------
+
+// --------------------------
+// OSRM FETCH HELPERS
+// --------------------------
+
 // ---------------------------
 // OSRM Route Fetcher (no node-fetch)
 // ---------------------------
@@ -482,8 +486,6 @@ function buildEnriched() {
 
     const risk5min = riskLevelFromCount(predicted5min);
     const risk10min = riskLevelFromCount(predicted10min);
-
-    // -----------------------
     // -----------------------------
 // A-14 Delay Detection (clean version)
 // -----------------------------
@@ -521,8 +523,6 @@ if (b.etaSeconds !== null && typeof b.etaSeconds === "number") {
       safetyScore: safety.safetyScore,
       safetyRating: safety.safetyRating,
       safetyNotes: safety.safetyNotes,
-      isAtStation: b.isAtStation || null,
-      currentStation: b.currentStation || "Unknown",
     };
   });
 }
@@ -538,10 +538,6 @@ app.get("/api/buses", (req, res) => {
   res.json(buildEnriched());
 });
 
-//----------------------------
-
-
-
 // Update route — stores a history record and broadcasts enriched data
 app.post("/api/buses/:id/update", async (req, res) => {
   const id = req.params.id;
@@ -555,17 +551,17 @@ app.post("/api/buses/:id/update", async (req, res) => {
     return res.status(400).json({ ok: false, message: "Missing lat, lng, or passengers" });
   }
 
-  const stations = {
-  "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
-  "HM Bus Terminal - Laguna":     { lat: 14.265278, lng: 121.428961 },
-  "HM BUS Terminal - Calamba":     { lat: 14.204603, lng: 121.156868 },
-  "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
-};
-
   // Read target station if provided
   if (req.body.targetStation) {
   bus.targetStation = req.body.targetStation;
 
+  // ---- STATION LOOKUP TABLE ----
+  const stations = {
+    "VTX - Vista Terminal Exchange Alabang": { lat: 14.415655, lng: 121.046180 },
+    "HM Bus Terminal - Laguna":     { lat: 14.265278, lng: 121.428961 },
+    "HM BUS Terminal - Calamba":     { lat: 14.204603, lng: 121.156868 },
+    "HM Transport Inc. Quezon City": { lat: 14.623390644859652, lng: 121.04877752268187 },
+  };
 
   const dest = stations[bus.targetStation];
 
@@ -590,45 +586,11 @@ if (osrm) {
 io.emit("buses_update", buildEnriched());
   }
 }
-  // -------------------------------------------------------
-// A-18: STATION PROXIMITY DETECTION (always check)
-// -------------------------------------------------------
-bus.isAtStation = false;
-bus.currentStation = null;
-
-const STATION_RADIUS = 80; // meters
-
-function distanceMeters(aLat, aLng, bLat, bLng) {
-  const R = 6371000;
-  const dLat = (bLat - aLat) * Math.PI / 180;
-  const dLng = (bLng - aLng) * Math.PI / 180;
-  const lat1 = aLat * Math.PI / 180;
-  const lat2 = bLat * Math.PI / 180;
-
-  const h = Math.sin(dLat/2)**2 +
-            Math.cos(lat1) * Math.cos(lat2) *
-            Math.sin(dLng/2)**2;
-
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-
-// check which station bus is near
-Object.entries(stations).forEach(([name, pos]) => {
-  const d = distanceMeters(bus.lat, bus.lng, pos.lat, pos.lng);
-
-  if (d <= STATION_RADIUS) {
-    bus.isAtStation = true;
-    bus.currentStation = name;
-  }
-});
-
 
   // Update
   bus.lat = lat;
   bus.lng = lng;
   bus.passengers = passengers;
-
-  
 
 
   
@@ -695,12 +657,6 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-
-
 
 
 
