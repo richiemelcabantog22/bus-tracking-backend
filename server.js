@@ -18,6 +18,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
   { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
+  { id: "BUS-003", lat: 14.415655, lng: 121.046180, passengers: 35 },
 ];
 //---------------------------------------------------------
 const STATION = {
@@ -714,6 +715,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
