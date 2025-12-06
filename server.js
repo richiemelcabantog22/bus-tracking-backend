@@ -20,6 +20,9 @@ let buses = [
   { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
   { id: "BUS-003", lat: 14.415655, lng: 121.046180, passengers: 35 },
   { id: "BUS-004", lat: 14.415655, lng: 121.046180, passengers: 10 },
+  { id: "BUS-005", lat: 14.265278, lng: 121.428961, passengers: 14 },
+  { id: "BUS-006", lat: 14.204603, lng: 121.156868, passengers: 30 },
+  { id: "BUS-007", lat: 14.623390644859652, lng: 121.04877752268187, passengers: 31 },
 ];
 //---------------------------------------------------------
 const STATION = {
@@ -39,6 +42,12 @@ const STATION = {
     name: "HM BUS Terminal - Calamba",
     lat: 14.204603,
     lng: 121.156868,
+    radius: 50,
+  },
+  "HM-Quezon": {
+    name: "HM Transport Inc. Quezon City",
+    lat: 14.623390644859652,
+    lng: 121.04877752268187,
     radius: 50,
   }
 };
@@ -716,6 +725,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
