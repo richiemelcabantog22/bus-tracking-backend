@@ -3,7 +3,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const authRouter = require('/auth');
+const authRouter = require('./auth');
 
 const app = express();
 app.use(express.json());
@@ -739,6 +739,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
