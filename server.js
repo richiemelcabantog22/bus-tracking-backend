@@ -17,12 +17,12 @@ const io = new Server(server, { cors: { origin: "*" } });
 // --------------------------
 let buses = [
   { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
-  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20, targetStation: "VTX - Vista Terminal Exchange Alabang" },
+  { id: "BUS-002", lat: 14.415655, lng: 121.046180, passengers: 20 },
   { id: "BUS-003", lat: 14.415655, lng: 121.046180, passengers: 35 },
   { id: "BUS-004", lat: 14.415655, lng: 121.046180, passengers: 10 },
-  { id: "BUS-005", lat: 14.265278, lng: 121.428961, passengers: 14 },
-  { id: "BUS-006", lat: 14.204603, lng: 121.156868, passengers: 30 },
-  { id: "BUS-007", lat: 14.623390644859652, lng: 121.04877752268187, passengers: 31 },
+  { id: "BUS-005", lat: 14.265278, lng: 121.428961, passengers: 14, targetStation: "VTX - Vista Terminal Exchange Alabang" },
+  { id: "BUS-006", lat: 14.204603, lng: 121.156868, passengers: 30, targetStation: "VTX - Vista Terminal Exchange Alabang" },
+  { id: "BUS-007", lat: 14.623390644859652, lng: 121.04877752268187, passengers: 31, targetStation: "VTX - Vista Terminal Exchange Alabang" },
 ];
 //---------------------------------------------------------
 const STATION = {
@@ -725,6 +725,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
