@@ -25,6 +25,17 @@ let buses = [
   { id: "BUS-007", lat: 14.623390644859652, lng: 121.04877752268187, passengers: 31, targetStation: "VTX - Vista Terminal Exchange Alabang" },
 ];
 //---------------------------------------------------------
+
+// --- Preserve initial targetStation values for BUS-005 to BUS-007 ---
+for (const b of buses) {
+// If targetStation is missing, keep existing one or set a safe default
+if (b.targetStation === undefined || b.targetStation === null || b.targetStation === "") {
+b.targetStation = "Unknown";
+}
+}
+
+
+//---------------------------------------------------
 const STATION = {
   "VTX": {
     name: "VTX - Vista Terminal Exchange Alabang",
@@ -725,6 +736,7 @@ io.on("connection", socket => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
