@@ -109,11 +109,7 @@ const IncidentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Bus = mongoose.model("Bus", BusSchema);
-const Driver = mongoose.model("Driver", DriverSchema);
-const Incident = mongoose.model("Incident", IncidentSchema);
-
-
+// NEW: User model for email/password accounts (does not affect Driver/Bus)
 const UserSchema = new mongoose.Schema(
   {
     name: { type: String, default: "" },
@@ -124,9 +120,10 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const Bus = mongoose.model("Bus", BusSchema);
+const Driver = mongoose.model("Driver", DriverSchema);
+const Incident = mongoose.model("Incident", IncidentSchema);
 const User = mongoose.model("User", UserSchema);
-
-
 
 // --------------------------
 // Seed defaults (DEV)
@@ -152,7 +149,6 @@ async function seedDefaults() {
       console.log(`Seeded driver ${busId} with PIN ${pin} (DEV)`);
     }
   }
-  
 
   const countBuses = await Bus.countDocuments();
   if (countBuses === 0) {
@@ -203,70 +199,6 @@ const STATION = {
 // --------------------------
 // Helpers
 // --------------------------
-function computeDriverSafetyScore(bus) {
-  let score = 100;
-  const notes = [];
-
-  const dp = (bus.drivePattern || "unknown").toLowerCase();
-
-  if (dp.includes("aggressive")) {
-    score -= 25;
-    notes.push("Aggressive driving pattern");
-  } else if (dp.includes("stop-and-go")) {
-    score -= 15;
-    notes.push("Frequent stop-and-go driving");
-  } else if (dp.includes("idle-too-long")) {
-    score -= 10;
-    notes.push("Idling too long");
-  } else if (dp.includes("drifting")) {
-    score -= 10;
-    notes.push("Drifting pattern");
-  } else if (dp.includes("smooth")) {
-    notes.push("Smooth driving");
-  }
-
-  if (Array.isArray(bus.anomalies) && bus.anomalies.length > 0) {
-    for (const a of bus.anomalies) {
-      if (a.code === "gps_jump") {
-        score -= 10;
-        notes.push("Irregular GPS movement");
-      }
-      if (a.code === "spike") {
-        score -= 10;
-        notes.push("Passenger spike event");
-      }
-      if (a.code === "overcrowding") {
-        score -= 5;
-        notes.push("Overcrowding detected");
-      }
-    }
-  }
-
-  if ((bus.crowdFlow || "").toLowerCase() === "spike") {
-    score -= 5;
-    notes.push("Sudden passenger increase");
-  }
-  if ((bus.crowdFlow || "").toLowerCase() === "drop") {
-    score -= 3;
-    notes.push("Abrupt off-boarding");
-  }
-
-  score = Math.max(0, Math.min(100, score));
-
-  let rating = "Good";
-  if (score >= 90) rating = "Excellent";
-  else if (score >= 75) rating = "Good";
-  else if (score >= 55) rating = "Fair";
-  else rating = "Poor";
-
-  return {
-    safetyScore: score,
-    safetyRating: rating,
-    safetyNotes: notes,
-  };
-}
-
-
 function distanceMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -651,6 +583,79 @@ async function buildEnriched() {
 }
 
 // --------------------------
+// Driver Safety Scoring (existing)
+// --------------------------
+function computeDriverSafetyScore(bus) {
+  const anomalies = bus.anomalies || [];
+  const crowdFlow = bus.crowdFlow || "stable";
+  const drivePattern = bus.drivePattern || "unknown";
+
+  let score = 100;
+  const notes = [];
+
+  // Anomalies impact
+  for (const a of anomalies) {
+    if (a.code === "overcrowding") {
+      score -= 15;
+      notes.push("Overcrowding detected");
+    }
+    if (a.code === "gps_jump") {
+      score -= 10;
+      notes.push("GPS jumps observed");
+    }
+    if (a.code === "spike") {
+      score -= 8;
+      notes.push("Passenger spike");
+    }
+    if (a.code === "low") {
+      // low passenger count doesn't affect safety
+    }
+  }
+
+  // Crowd flow impact
+  if (crowdFlow === "spike") {
+    score -= 6;
+    notes.push("Crowd spike");
+  } else if (crowdFlow === "drop") {
+    score -= 3;
+    notes.push("Crowd drop");
+  } else if (crowdFlow === "increasing") {
+    score -= 2;
+  } else if (crowdFlow === "decreasing") {
+    // minor positive impact
+    score += 1;
+  }
+
+  // Drive pattern impact
+  if (drivePattern === "Aggressive") {
+    score -= 25;
+    notes.push("Aggressive driving pattern");
+  } else if (drivePattern === "Stop-and-go") {
+    score -= 12;
+    notes.push("Stop-and-go driving");
+  } else if (drivePattern === "Idle-too-long") {
+    score -= 5;
+    notes.push("Idle too long");
+  } else if (drivePattern === "Drifting") {
+    score -= 8;
+    notes.push("Unstable driving (drifting)");
+  } else if (drivePattern === "Smooth") {
+    score += 5;
+  }
+
+  // Clamp score
+  score = Math.max(0, Math.min(100, score));
+
+  let rating = "Excellent";
+  if (score >= 85) rating = "Excellent";
+  else if (score >= 70) rating = "Good";
+  else if (score >= 55) rating = "Fair";
+  else rating = "Needs Attention";
+
+  return { safetyScore: score, safetyRating: rating, safetyNotes: notes };
+}
+
+// --------------------------
 // Auth middleware for REST
 // --------------------------
 function requireAuth(req, res, next) {
@@ -693,9 +698,12 @@ app.get("/", (req, res) => {
 });
 
 // Auth: login
+// Extended to support user email/password login WITHOUT breaking driver login (busId+pin)
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { busId, pin, password } = req.body || {};
+    const { busId, pin, password, email } = req.body || {};
+
+    // User login branch (email/password) when busId is not provided
     if (email && password && !busId) {
       try {
         const normalizedEmail = String(email).toLowerCase().trim();
@@ -716,6 +724,8 @@ app.post("/api/auth/login", async (req, res) => {
         return res.status(500).json({ ok: false, message: "Login error" });
       }
     }
+
+    // Existing: driver login (busId + pin/password)
     const provided = pin || password;
     if (!busId || !provided) {
       return res.status(400).json({ ok: false, message: "Missing busId or pin/password" });
@@ -734,7 +744,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-
+// Auth: signup (new user email/password accounts)
 app.post("/api/auth/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
@@ -766,9 +776,6 @@ app.post("/api/auth/signup", async (req, res) => {
     return res.status(500).json({ ok: false, message: "Signup error" });
   }
 });
-
-
- 
 
 // Auth: forgot PIN (generate reset code)
 app.post("/api/auth/forgot", async (req, res) => {
@@ -968,7 +975,3 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
