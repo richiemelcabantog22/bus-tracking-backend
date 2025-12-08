@@ -735,22 +735,12 @@ io.on("connection", socket => {
   socket.emit("buses_update", buildEnriched());
 });
 
-socket.on("driver_join", (payload) => {
-    try {
-      const { busId } = payload || {};
-      if (busId) {
-        socket.join(busId);
-        console.log(`Socket ${socket.id} joined room ${busId}`);
-      }
-    } catch (e) {
-      console.warn("driver_join error:", e);
-    }
-  });
 
 // --------------------------
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
