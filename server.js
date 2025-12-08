@@ -137,6 +137,7 @@ async function seedDefaults() {
       console.log(`Seeded driver ${busId} with PIN ${pin} (DEV)`);
     }
   }
+  
 
   const countBuses = await Bus.countDocuments();
   if (countBuses === 0) {
@@ -187,6 +188,70 @@ const STATION = {
 // --------------------------
 // Helpers
 // --------------------------
+function computeDriverSafetyScore(bus) {
+  let score = 100;
+  const notes = [];
+
+  const dp = (bus.drivePattern || "unknown").toLowerCase();
+
+  if (dp.includes("aggressive")) {
+    score -= 25;
+    notes.push("Aggressive driving pattern");
+  } else if (dp.includes("stop-and-go")) {
+    score -= 15;
+    notes.push("Frequent stop-and-go driving");
+  } else if (dp.includes("idle-too-long")) {
+    score -= 10;
+    notes.push("Idling too long");
+  } else if (dp.includes("drifting")) {
+    score -= 10;
+    notes.push("Drifting pattern");
+  } else if (dp.includes("smooth")) {
+    notes.push("Smooth driving");
+  }
+
+  if (Array.isArray(bus.anomalies) && bus.anomalies.length > 0) {
+    for (const a of bus.anomalies) {
+      if (a.code === "gps_jump") {
+        score -= 10;
+        notes.push("Irregular GPS movement");
+      }
+      if (a.code === "spike") {
+        score -= 10;
+        notes.push("Passenger spike event");
+      }
+      if (a.code === "overcrowding") {
+        score -= 5;
+        notes.push("Overcrowding detected");
+      }
+    }
+  }
+
+  if ((bus.crowdFlow || "").toLowerCase() === "spike") {
+    score -= 5;
+    notes.push("Sudden passenger increase");
+  }
+  if ((bus.crowdFlow || "").toLowerCase() === "drop") {
+    score -= 3;
+    notes.push("Abrupt off-boarding");
+  }
+
+  score = Math.max(0, Math.min(100, score));
+
+  let rating = "Good";
+  if (score >= 90) rating = "Excellent";
+  else if (score >= 75) rating = "Good";
+  else if (score >= 55) rating = "Fair";
+  else rating = "Poor";
+
+  return {
+    safetyScore: score,
+    safetyRating: rating,
+    safetyNotes: notes,
+  };
+}
+
+
 function distanceMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -832,5 +897,6 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
