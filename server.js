@@ -113,6 +113,21 @@ const Bus = mongoose.model("Bus", BusSchema);
 const Driver = mongoose.model("Driver", DriverSchema);
 const Incident = mongoose.model("Incident", IncidentSchema);
 
+
+const UserSchema = new mongoose.Schema(
+  {
+    name: { type: String, default: "" },
+    email: { type: String, unique: true, index: true },
+    passwordHash: String,
+    role: { type: String, default: "user" },
+  },
+  { timestamps: true }
+);
+
+const User = mongoose.model("User", UserSchema);
+
+
+
 // --------------------------
 // Seed defaults (DEV)
 // --------------------------
@@ -681,6 +696,26 @@ app.get("/", (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { busId, pin, password } = req.body || {};
+    if (email && password && !busId) {
+      try {
+        const normalizedEmail = String(email).toLowerCase().trim();
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) return res.status(404).json({ ok: false, message: "User not found" });
+
+        const ok = await bcrypt.compare(String(password), user.passwordHash);
+        if (!ok) return res.status(401).json({ ok: false, message: "Invalid email or password" });
+
+        const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+        return res.json({
+          ok: true,
+          token,
+          user: { id: user._id, name: user.name, email: user.email },
+        });
+      } catch (e) {
+        console.error("User login error:", e);
+        return res.status(500).json({ ok: false, message: "Login error" });
+      }
+    }
     const provided = pin || password;
     if (!busId || !provided) {
       return res.status(400).json({ ok: false, message: "Missing busId or pin/password" });
@@ -698,6 +733,42 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(500).json({ ok: false, message: "Login error" });
   }
 });
+
+
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const { name, email, password } = req.body || {};
+    if (!name || !email || !password) {
+      return res.status(400).json({ ok: false, message: "Missing name, email or password" });
+    }
+
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing) {
+      return res.status(409).json({ ok: false, message: "Email already registered" });
+    }
+
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const user = await User.create({
+      name: String(name).trim(),
+      email: normalizedEmail,
+      passwordHash,
+    });
+
+    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+    return res.status(201).json({
+      ok: true,
+      token,
+      user: { id: user._id, name: user.name, email: user.email },
+    });
+  } catch (e) {
+    console.error("Signup error:", e);
+    return res.status(500).json({ ok: false, message: "Signup error" });
+  }
+});
+
+
+ 
 
 // Auth: forgot PIN (generate reset code)
 app.post("/api/auth/forgot", async (req, res) => {
@@ -897,6 +968,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
