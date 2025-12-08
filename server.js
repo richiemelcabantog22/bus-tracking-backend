@@ -746,12 +746,12 @@ socket.on("driver_join", (payload) => {
       console.warn("driver_join error:", e);
     }
   });
-});
 
 // --------------------------
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
