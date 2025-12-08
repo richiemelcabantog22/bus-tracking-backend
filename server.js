@@ -19,7 +19,7 @@ const jwt = require("jsonwebtoken");
 // ENV
 // --------------------------
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://richiepogi22_db_user:BGXx2qUDhMMhIh05@bustrack.t4hcmjt.mongodb.net/?appName=BusTrack";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://136.158.27.61/32";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_jwt";
 const REQUIRE_AUTH = (process.env.REQUIRE_AUTH || "true").toLowerCase() === "true";
 const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
@@ -832,4 +832,5 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
