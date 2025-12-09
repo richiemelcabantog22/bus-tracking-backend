@@ -972,43 +972,6 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
 // New endpoints for onboard/dropoff user status
 // --------------------------
 
-// POST /api/buses/:id/onboard - set isOnboard true for user
-app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    if (!userId) return res.status(403).json({ ok: false, message: "User not authenticated" });
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
-
-    user.isOnboard = true;
-    await user.save();
-
-    return res.json({ ok: true, isOnboard: true });
-  } catch (e) {
-    console.error("Onboard error:", e);
-    return res.status(500).json({ ok: false, message: "Onboard error" });
-  }
-});
-
-// POST /api/buses/:id/dropoff - set isOnboard false for user
-app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    if (!userId) return res.status(403).json({ ok: false, message: "User not authenticated" });
-
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
-
-    user.isOnboard = false;
-    await user.save();
-
-    return res.json({ ok: true, isOnboard: false });
-  } catch (e) {
-    console.error("Dropoff error:", e);
-    return res.status(500).json({ ok: false, message: "Dropoff error" });
-  }
-});
 
 // --------------------------
 // Socket.io
@@ -1038,4 +1001,5 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
