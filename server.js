@@ -681,34 +681,39 @@ function requireAuth(req, res, next) {
 // Middleware to require user auth (email/password user)
 // Fix requireUserAuth middleware to safely handle missing or invalid payload
 
-async function requireUserAuth(req, res, next) {               // <-- made async
+// Add debug prints inside requireUserAuth middleware
+
+async function requireUserAuth(req, res, next) {
   if (!REQUIRE_AUTH) return next();
   try {
     const hdr = req.headers.authorization || "";
     const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
-    if (!token) return res.status(401).json({ ok: false, message: "Missing token" });
+    if (!token) {
+      console.warn("requireUserAuth: Missing token");
+      return res.status(401).json({ ok: false, message: "Missing token" });
+    }
 
     const payload = jwt.verify(token, JWT_SECRET);
+    console.log("requireUserAuth: token payload", payload);
 
-    // Accept either userId from payload or resolve by email (fallback)
     let userId = payload.userId;
     let email = payload.email;
 
     if (!userId && email) {
-      // Fallback: resolve userId by email if present
       const u = await User.findOne({ email });
       if (u) userId = String(u._id);
     }
 
     if (!userId) {
-      // Debug aid
       console.warn("requireUserAuth: token payload missing userId", payload);
       return res.status(403).json({ ok: false, message: "User auth required" });
     }
 
     req.user = { userId, email };
+    console.log("requireUserAuth: user set on req:", req.user);
     next();
   } catch (e) {
+    console.warn("requireUserAuth: Invalid token", e);
     return res.status(401).json({ ok: false, message: "Invalid token" });
   }
 }
@@ -990,6 +995,7 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
 });
 
 app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
+  console.log("Onboard route: req.user =", req.user);
   try {
     const busId = req.params.id;
 
@@ -1000,7 +1006,6 @@ app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
       return res.status(404).json({ ok: false, message: "Bus not found" });
     }
 
-    // Load user from token payload
     if (!req.user || !req.user.userId) {
       console.warn("Onboard: Missing user in req.user");
       return res.status(403).json({ ok: false, message: "User auth required" });
@@ -1120,6 +1125,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
