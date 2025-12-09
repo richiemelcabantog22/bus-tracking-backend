@@ -15,7 +15,6 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-
 // --------------------------
 // ENV
 // --------------------------
@@ -677,6 +676,22 @@ function requireAuth(req, res, next) {
   }
 }
 
+// Middleware to require user auth (email/password user)
+function requireUserAuth(req, res, next) {
+  if (!REQUIRE_AUTH) return next();
+  try {
+    const hdr = req.headers.authorization || "";
+    const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
+    if (!token) return res.status(401).json({ ok: false, message: "Missing token" });
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (!payload.userId) return res.status(403).json({ ok: false, message: "User auth required" });
+    req.user = payload;
+    next();
+  } catch (e) {
+    return res.status(401).json({ ok: false, message: "Invalid token" });
+  }
+}
+
 io.use((socket, next) => {
   if (!REQUIRE_AUTH) return next();
   try {
@@ -857,7 +872,6 @@ app.post("/api/auth/set-pin", async (req, res) => {
   }
 });
 
-
 // List buses (enriched)
 app.get("/api/buses", async (req, res) => {
   const data = await buildEnriched();
@@ -881,7 +895,6 @@ app.post("/api/incidents", async (req, res) => {
   io.emit("incident", { busId, category, details, lat, lng, timestamp });
   res.status(201).json({ ok: true });
 });
-
 
 // Update bus location/route
 app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
@@ -952,6 +965,48 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
 });
 
 // --------------------------
+// New endpoints for onboard/dropoff user status
+// --------------------------
+
+// POST /api/buses/:id/onboard - set isOnboard true for user
+app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    if (!userId) return res.status(403).json({ ok: false, message: "User not authenticated" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
+
+    user.isOnboard = true;
+    await user.save();
+
+    return res.json({ ok: true, isOnboard: true });
+  } catch (e) {
+    console.error("Onboard error:", e);
+    return res.status(500).json({ ok: false, message: "Onboard error" });
+  }
+});
+
+// POST /api/buses/:id/dropoff - set isOnboard false for user
+app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    if (!userId) return res.status(403).json({ ok: false, message: "User not authenticated" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
+
+    user.isOnboard = false;
+    await user.save();
+
+    return res.json({ ok: true, isOnboard: false });
+  } catch (e) {
+    console.error("Dropoff error:", e);
+    return res.status(500).json({ ok: false, message: "Dropoff error" });
+  }
+});
+
+// --------------------------
 // Socket.io
 // --------------------------
 io.on("connection", (socket) => {
@@ -979,10 +1034,3 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
-
-
-
-
-
