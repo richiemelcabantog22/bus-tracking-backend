@@ -683,40 +683,54 @@ function requireAuth(req, res, next) {
 
 // Add debug prints inside requireUserAuth middleware
 
-async function requireUserAuth(req, res, next) {
+function requireUserAuth(req, res, next) {
   if (!REQUIRE_AUTH) return next();
+
+  const hdr = req.headers.authorization || "";
+  const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
+  if (!token) {
+    console.warn("requireUserAuth: Missing token");
+    return res.status(401).json({ ok: false, message: "Missing token" });
+  }
+
+  let payload;
   try {
-    const hdr = req.headers.authorization || "";
-    const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
-    if (!token) {
-      console.warn("requireUserAuth: Missing token");
-      return res.status(401).json({ ok: false, message: "Missing token" });
-    }
-
-    const payload = jwt.verify(token, JWT_SECRET);
-    console.log("requireUserAuth: token payload", payload);
-
-    let userId = payload.userId;
-    let email = payload.email;
-
-    if (!userId && email) {
-      const u = await User.findOne({ email });
-      if (u) userId = String(u._id);
-    }
-
-    if (!userId) {
-      console.warn("requireUserAuth: token payload missing userId", payload);
-      return res.status(403).json({ ok: false, message: "User auth required" });
-    }
-
-    req.user = { userId, email };
-    console.log("requireUserAuth: user set on req:", req.user);
-    next();
+    payload = jwt.verify(token, JWT_SECRET);
   } catch (e) {
     console.warn("requireUserAuth: Invalid token", e);
     return res.status(401).json({ ok: false, message: "Invalid token" });
   }
+
+  let userId = payload.userId;
+  let email = payload.email;
+
+  if (!userId && email) {
+    User.findOne({ email })
+      .then((u) => {
+        if (u) userId = String(u._id);
+        if (!userId) {
+          console.warn("requireUserAuth: token payload missing userId", payload);
+          return res.status(403).json({ ok: false, message: "User auth required" });
+        }
+        req.user = { userId, email };
+        console.log("requireUserAuth: user set on req:", req.user);
+        next();
+      })
+      .catch((err) => {
+        console.error("requireUserAuth: DB error", err);
+        return res.status(500).json({ ok: false, message: "Server error" });
+      });
+  } else {
+    if (!userId) {
+      console.warn("requireUserAuth: token payload missing userId", payload);
+      return res.status(403).json({ ok: false, message: "User auth required" });
+    }
+    req.user = { userId, email };
+    console.log("requireUserAuth: user set on req:", req.user);
+    next();
+  }
 }
+
 
 io.use((socket, next) => {
   if (!REQUIRE_AUTH) return next();
@@ -1125,6 +1139,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
