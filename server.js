@@ -886,8 +886,18 @@ app.post("/api/buses/:id/onboard", requireAuth, async (req, res) => {
   try {
     const id = req.params.id;
     const userId = req.user.userId; // Get the user ID from the token
+
+    // Check if the bus exists
     const bus = await Bus.findOne({ id });
-    if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+    if (!bus) {
+      return res.status(404).json({ ok: false, message: "Bus not found" });
+    }
+
+    // Check if the user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "User not found" });
+    }
 
     // Update user onboard status
     await User.findByIdAndUpdate(userId, { isOnboard: true });
@@ -901,7 +911,7 @@ app.post("/api/buses/:id/onboard", requireAuth, async (req, res) => {
     return res.json({ ok: true, passengers: bus.passengers });
   } catch (e) {
     console.error("Onboard error:", e);
-    return res.status(500).json({ ok: false, message: "Onboard error" });
+    return res.status(500).json({ ok: false, message: "Onboard error", error: e.message });
   }
 });
 
@@ -1027,4 +1037,5 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
