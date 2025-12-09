@@ -677,6 +677,8 @@ function requireAuth(req, res, next) {
 }
 
 // Middleware to require user auth (email/password user)
+// Fix requireUserAuth middleware to safely handle missing or invalid payload
+
 function requireUserAuth(req, res, next) {
   if (!REQUIRE_AUTH) return next();
   try {
@@ -684,7 +686,9 @@ function requireUserAuth(req, res, next) {
     const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
     if (!token) return res.status(401).json({ ok: false, message: "Missing token" });
     const payload = jwt.verify(token, JWT_SECRET);
-    if (!payload.userId) return res.status(403).json({ ok: false, message: "User auth required" });
+    if (!payload || typeof payload !== "object" || !("userId" in payload)) {
+      return res.status(403).json({ ok: false, message: "User auth required" });
+    }
     req.user = payload;
     next();
   } catch (e) {
@@ -1034,3 +1038,4 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
