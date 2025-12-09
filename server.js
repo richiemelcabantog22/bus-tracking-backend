@@ -15,6 +15,10 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+
+const User = require("./test/user"); // User model
+const Bus = require("./test/bueses"); // Bus model
+
 // --------------------------
 // ENV
 // --------------------------
@@ -882,36 +886,28 @@ app.post("/api/incidents", async (req, res) => {
 });
 
 
+
 app.post("/api/buses/:id/onboard", requireAuth, async (req, res) => {
   try {
-    const id = req.params.id;
-    const userId = req.user.userId; // Get the user ID from the token
+    const busId = req.params.id;
+    const userId = req.user.userId; // Get user ID from token
 
-    // Log the user ID for debugging
-    console.log("User ID from token:", userId);
+    const bus = await Bus.findOne({ id: busId });
+    if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
 
-    // Check if the bus exists
-    const bus = await Bus.findOne({ id });
-    if (!bus) {
-      console.error("Bus not found:", id);
-      return res.status(404).json({ ok: false, message: "Bus not found" });
-    }
-
-    // Check if the user exists
     const user = await User.findById(userId);
-    if (!user) {
-      console.error("User not found:", userId);
-      return res.status(404).json({ ok: false, message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
 
     // Update user onboard status
-    await User.findByIdAndUpdate(userId, { isOnboard: true });
+    user.isOnboard = true;
+    await user.save();
 
-    bus.passengers += 1; // Increment the passenger count
+    // Increment passenger count
+    bus.passengers += 1;
     await bus.save();
 
     // Notify driver or perform any other action needed
-    io.emit("passenger_onboard", { busId: id, count: bus.passengers });
+    io.emit("passenger_onboard", { busId, count: bus.passengers });
 
     return res.json({ ok: true, passengers: bus.passengers });
   } catch (e) {
@@ -920,29 +916,35 @@ app.post("/api/buses/:id/onboard", requireAuth, async (req, res) => {
   }
 });
 
-
 app.post("/api/buses/:id/dropoff", requireAuth, async (req, res) => {
   try {
-    const id = req.params.id;
-    const userId = req.user.userId; // Get the user ID from the token
-    const bus = await Bus.findOne({ id });
+    const busId = req.params.id;
+    const userId = req.user.userId; // Get user ID from token
+
+    const bus = await Bus.findOne({ id: busId });
     if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
 
-    // Update user onboard status
-    await User.findByIdAndUpdate(userId, { isOnboard: false });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
 
-    bus.passengers = Math.max(0, bus.passengers - 1); // Decrement the passenger count
+    // Update user onboard status
+    user.isOnboard = false;
+    await user.save();
+
+    // Decrement passenger count
+    bus.passengers = Math.max(0, bus.passengers - 1);
     await bus.save();
 
     // Notify driver or perform any other action needed
-    io.emit("passenger_dropoff", { busId: id, count: bus.passengers });
+    io.emit("passenger_dropoff", { busId, count: bus.passengers });
 
     return res.json({ ok: true, passengers: bus.passengers });
   } catch (e) {
     console.error("Drop-off error:", e);
-    return res.status(500).json({ ok: false, message: "Drop-off error" });
+    return res.status(500).json({ ok: false, message: "Drop-off error", error: e.message });
   }
 });
+
 
 
 
@@ -1042,6 +1044,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
