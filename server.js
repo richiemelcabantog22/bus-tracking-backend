@@ -1008,35 +1008,32 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
-  console.log("Onboard route: req.user =", req.user);
+// Remove requireUserAuth middleware from onboard and dropoff routes
+// Accept userId in request body to identify user
+
+app.post("/api/buses/:id/onboard", async (req, res) => {
   try {
     const busId = req.params.id;
+    const { userId } = req.body;
 
-    // Ensure bus exists
+    if (!userId) {
+      return res.status(400).json({ ok: false, message: "Missing userId" });
+    }
+
     const bus = await Bus.findOne({ id: busId });
     if (!bus) {
-      console.warn("Onboard: Bus not found", busId);
       return res.status(404).json({ ok: false, message: "Bus not found" });
     }
 
-    if (!req.user || !req.user.userId) {
-      console.warn("Onboard: Missing user in req.user");
-      return res.status(403).json({ ok: false, message: "User auth required" });
-    }
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(userId);
     if (!user) {
-      console.warn("Onboard: User not found", req.user.userId);
       return res.status(404).json({ ok: false, message: "User not found" });
     }
 
-    // Update user onboard status
     user.isOnboard = true;
     user.currentBusId = busId;
     user.boardedAt = new Date();
     await user.save();
-
-    console.log(`User ${user.email} onboarded bus ${busId}`);
 
     return res.json({
       ok: true,
@@ -1045,29 +1042,27 @@ app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
       user: { id: user._id, email: user.email },
     });
   } catch (e) {
-    console.error("Onboard error:", e && e.stack ? e.stack : e);
+    console.error("Onboard error:", e);
     return res.status(500).json({ ok: false, message: "Onboard error" });
   }
 });
 
-// Dropoff: set user's isOnboard to false (requires user JWT)
-app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
+app.post("/api/buses/:id/dropoff", async (req, res) => {
   try {
     const busId = req.params.id;
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ ok: false, message: "Missing userId" });
+    }
 
     const bus = await Bus.findOne({ id: busId });
     if (!bus) {
-      console.warn("Dropoff: Bus not found", busId);
       return res.status(404).json({ ok: false, message: "Bus not found" });
     }
 
-    if (!req.user || !req.user.userId) {
-      console.warn("Dropoff: Missing user in req.user");
-      return res.status(403).json({ ok: false, message: "User auth required" });
-    }
-    const user = await User.findById(req.user.userId);
+    const user = await User.findById(userId);
     if (!user) {
-      console.warn("Dropoff: User not found", req.user.userId);
       return res.status(404).json({ ok: false, message: "User not found" });
     }
 
@@ -1076,8 +1071,6 @@ app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
     user.boardedAt = null;
     await user.save();
 
-    console.log(`User ${user.email} dropped off from bus ${busId}`);
-
     return res.json({
       ok: true,
       isOnboard: false,
@@ -1085,7 +1078,7 @@ app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
       user: { id: user._id, email: user.email },
     });
   } catch (e) {
-    console.error("Dropoff error:", e && e.stack ? e.stack : e);
+    console.error("Dropoff error:", e);
     return res.status(500).json({ ok: false, message: "Dropoff error" });
   }
 });
@@ -1139,6 +1132,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
