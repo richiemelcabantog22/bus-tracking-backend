@@ -979,7 +979,6 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
 // --------------------------
 // New endpoints for onboard/dropoff user status
 // --------------------------
-
 app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
   try {
     const busId = req.params.id;
@@ -990,12 +989,11 @@ app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
       return res.status(404).json({ ok: false, message: "Bus not found" });
     }
 
-    // Ensure user is authenticated
+    // Load user from token payload
     const userId = req.user?.userId;
     if (!userId) {
       return res.status(403).json({ ok: false, message: "User auth required" });
     }
-
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ ok: false, message: "User not found" });
@@ -1007,8 +1005,7 @@ app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
     user.boardedAt = new Date();
     await user.save();
 
-    // Optional socket broadcast
-    // io.to(busId).emit("user_onboard", { userId, busId });
+    console.log(`User ${user.email} onboarded bus ${busId}`);
 
     return res.json({
       ok: true,
@@ -1022,12 +1019,12 @@ app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
   }
 });
 
-// User drops off (requires user auth token with { userId })
+// Dropoff: set user's isOnboard to false (requires user JWT)
 app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
   try {
     const busId = req.params.id;
 
-    // Optional: check bus existence
+    // Optional: verify bus exists
     const bus = await Bus.findOne({ id: busId });
     if (!bus) {
       return res.status(404).json({ ok: false, message: "Bus not found" });
@@ -1037,7 +1034,6 @@ app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
     if (!userId) {
       return res.status(403).json({ ok: false, message: "User auth required" });
     }
-
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ ok: false, message: "User not found" });
@@ -1048,8 +1044,7 @@ app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
     user.boardedAt = null;
     await user.save();
 
-    // Optional socket broadcast
-    // io.to(busId).emit("user_dropoff", { userId, busId });
+    console.log(`User ${user.email} dropped off from bus ${busId}`);
 
     return res.json({
       ok: true,
@@ -1063,7 +1058,7 @@ app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
   }
 });
 
-// Optional: quick endpoint to verify user onboard status
+// Optional: check current user state quickly
 app.get("/api/me", requireUserAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).lean();
@@ -1072,7 +1067,6 @@ app.get("/api/me", requireUserAuth, async (req, res) => {
       ok: true,
       user: {
         id: user._id,
-        name: user.name,
         email: user.email,
         isOnboard: !!user.isOnboard,
         currentBusId: user.currentBusId,
@@ -1084,7 +1078,6 @@ app.get("/api/me", requireUserAuth, async (req, res) => {
     return res.status(500).json({ ok: false, message: "Get me error" });
   }
 });
-// ... existing code ...
 
 // --------------------------
 // Socket.io
@@ -1114,6 +1107,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
