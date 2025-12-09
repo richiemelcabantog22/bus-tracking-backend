@@ -751,7 +751,12 @@ app.post("/api/auth/login", async (req, res) => {
         const ok = await bcrypt.compare(String(password), user.passwordHash);
         if (!ok) return res.status(401).json({ ok: false, message: "Invalid email or password" });
 
-        const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+        // CHANGED: ensure userId is a string in the JWT payload
+        const token = jwt.sign(
+          { userId: String(user._id), email: user.email },   // <-- changed
+          JWT_SECRET,
+          { expiresIn: "7d" }
+        );
         return res.json({
           ok: true,
           token,
@@ -781,7 +786,6 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(500).json({ ok: false, message: "Login error" });
   }
 });
-
 // Auth: signup (new user email/password accounts)
 app.post("/api/auth/signup", async (req, res) => {
   try {
@@ -1085,6 +1089,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
