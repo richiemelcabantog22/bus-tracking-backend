@@ -887,15 +887,20 @@ app.post("/api/buses/:id/onboard", requireAuth, async (req, res) => {
     const id = req.params.id;
     const userId = req.user.userId; // Get the user ID from the token
 
+    // Log the user ID for debugging
+    console.log("User ID from token:", userId);
+
     // Check if the bus exists
     const bus = await Bus.findOne({ id });
     if (!bus) {
+      console.error("Bus not found:", id);
       return res.status(404).json({ ok: false, message: "Bus not found" });
     }
 
     // Check if the user exists
     const user = await User.findById(userId);
     if (!user) {
+      console.error("User not found:", userId);
       return res.status(404).json({ ok: false, message: "User not found" });
     }
 
@@ -1037,6 +1042,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
