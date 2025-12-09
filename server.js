@@ -117,6 +117,8 @@ const UserSchema = new mongoose.Schema(
     passwordHash: String,
     role: { type: String, default: "user" },
     isOnboard: { type: Boolean, default: false },
+    currentBusId: { type: String, default: null },       
+    boardedAt: { type: Date, default: null },    
   },
   { timestamps: true }
 );
@@ -972,6 +974,93 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
 // New endpoints for onboard/dropoff user status
 // --------------------------
 
+// ... existing code ...
+
+// --------------------------
+// New endpoints for onboard/dropoff user status
+// --------------------------
+
+// User boards a bus (requires user auth token)
+app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
+  try {
+    const busId = req.params.id;
+
+    // Ensure bus exists
+    const bus = await Bus.findOne({ id: busId });
+    if (!bus) {
+      return res.status(404).json({ ok: false, message: "Bus not found" });
+    }
+
+    // Load user by token subject (userId)
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "User not found" });
+    }
+
+    // Optional: resolve switching buses
+    if (user.isOnboard && user.currentBusId && user.currentBusId !== busId) {
+      // If needed, you can emit an event or just overwrite the bus association
+      // io.to(user.currentBusId).emit("user_dropoff", { userId: user._id, busId: user.currentBusId });
+    }
+
+    user.isOnboard = true;
+    user.currentBusId = busId;
+    user.boardedAt = new Date();
+    await user.save();
+
+    // Optional: notify sockets (if you want to display boarding info)
+    // io.to(busId).emit("user_onboard", { userId: user._id, busId });
+
+    return res.json({
+      ok: true,
+      isOnboard: true,
+      busId,
+      user: { id: user._id, email: user.email },
+    });
+  } catch (e) {
+    console.error("Onboard error:", e);
+    return res.status(500).json({ ok: false, message: "Onboard error" });
+  }
+});
+
+// User drops off (requires user auth token)
+app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
+  try {
+    const busId = req.params.id;
+
+    // Ensure bus exists (optional check)
+    const bus = await Bus.findOne({ id: busId });
+    if (!bus) {
+      return res.status(404).json({ ok: false, message: "Bus not found" });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ ok: false, message: "User not found" });
+    }
+
+    // Only drop off if the user is onboard; otherwise just return success
+    user.isOnboard = false;
+    user.currentBusId = null;
+    user.boardedAt = null;
+    await user.save();
+
+    // Optional: notify sockets
+    // io.to(busId).emit("user_dropoff", { userId: user._id, busId });
+
+    return res.json({
+      ok: true,
+      isOnboard: false,
+      busId,
+      user: { id: user._id, email: user.email },
+    });
+  } catch (e) {
+    console.error("Dropoff error:", e);
+    return res.status(500).json({ ok: false, message: "Dropoff error" });
+  }
+});
+
+// ... existing code ...
 
 // --------------------------
 // Socket.io
@@ -1001,5 +1090,6 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
