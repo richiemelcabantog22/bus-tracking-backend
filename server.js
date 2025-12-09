@@ -16,8 +16,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 
-const User = require("./test/user"); // User model
-const Bus = require("./test/bueses"); // Bus model
+// Models
+const User = require("./models/User"); // User model
+const Bus = require("./models/Bus"); // Bus model
 
 // --------------------------
 // ENV
@@ -916,6 +917,7 @@ app.post("/api/buses/:id/onboard", requireAuth, async (req, res) => {
   }
 });
 
+// Drop-off endpoint
 app.post("/api/buses/:id/dropoff", requireAuth, async (req, res) => {
   try {
     const busId = req.params.id;
@@ -1044,6 +1046,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
