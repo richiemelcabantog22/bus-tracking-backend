@@ -980,7 +980,6 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
 // New endpoints for onboard/dropoff user status
 // --------------------------
 
-// User boards a bus (requires user auth token)
 app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
   try {
     const busId = req.params.id;
@@ -991,25 +990,25 @@ app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
       return res.status(404).json({ ok: false, message: "Bus not found" });
     }
 
-    // Load user by token subject (userId)
-    const user = await User.findById(req.user.userId);
+    // Ensure user is authenticated
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(403).json({ ok: false, message: "User auth required" });
+    }
+
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ ok: false, message: "User not found" });
     }
 
-    // Optional: resolve switching buses
-    if (user.isOnboard && user.currentBusId && user.currentBusId !== busId) {
-      // If needed, you can emit an event or just overwrite the bus association
-      // io.to(user.currentBusId).emit("user_dropoff", { userId: user._id, busId: user.currentBusId });
-    }
-
+    // Update user onboard status
     user.isOnboard = true;
     user.currentBusId = busId;
     user.boardedAt = new Date();
     await user.save();
 
-    // Optional: notify sockets (if you want to display boarding info)
-    // io.to(busId).emit("user_onboard", { userId: user._id, busId });
+    // Optional socket broadcast
+    // io.to(busId).emit("user_onboard", { userId, busId });
 
     return res.json({
       ok: true,
@@ -1023,30 +1022,34 @@ app.post("/api/buses/:id/onboard", requireUserAuth, async (req, res) => {
   }
 });
 
-// User drops off (requires user auth token)
+// User drops off (requires user auth token with { userId })
 app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
   try {
     const busId = req.params.id;
 
-    // Ensure bus exists (optional check)
+    // Optional: check bus existence
     const bus = await Bus.findOne({ id: busId });
     if (!bus) {
       return res.status(404).json({ ok: false, message: "Bus not found" });
     }
 
-    const user = await User.findById(req.user.userId);
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(403).json({ ok: false, message: "User auth required" });
+    }
+
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ ok: false, message: "User not found" });
     }
 
-    // Only drop off if the user is onboard; otherwise just return success
     user.isOnboard = false;
     user.currentBusId = null;
     user.boardedAt = null;
     await user.save();
 
-    // Optional: notify sockets
-    // io.to(busId).emit("user_dropoff", { userId: user._id, busId });
+    // Optional socket broadcast
+    // io.to(busId).emit("user_dropoff", { userId, busId });
 
     return res.json({
       ok: true,
@@ -1060,6 +1063,27 @@ app.post("/api/buses/:id/dropoff", requireUserAuth, async (req, res) => {
   }
 });
 
+// Optional: quick endpoint to verify user onboard status
+app.get("/api/me", requireUserAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).lean();
+    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
+    return res.json({
+      ok: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        isOnboard: !!user.isOnboard,
+        currentBusId: user.currentBusId,
+        boardedAt: user.boardedAt,
+      },
+    });
+  } catch (e) {
+    console.error("Get me error:", e);
+    return res.status(500).json({ ok: false, message: "Get me error" });
+  }
+});
 // ... existing code ...
 
 // --------------------------
@@ -1090,6 +1114,7 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
 
 
