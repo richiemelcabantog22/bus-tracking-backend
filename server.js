@@ -116,6 +116,7 @@ const UserSchema = new mongoose.Schema(
     email: { type: String, unique: true, index: true },
     passwordHash: String,
     role: { type: String, default: "user" },
+    isOnboard: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
@@ -855,6 +856,7 @@ app.post("/api/auth/set-pin", async (req, res) => {
   }
 });
 
+
 // List buses (enriched)
 app.get("/api/buses", async (req, res) => {
   const data = await buildEnriched();
@@ -878,6 +880,56 @@ app.post("/api/incidents", async (req, res) => {
   io.emit("incident", { busId, category, details, lat, lng, timestamp });
   res.status(201).json({ ok: true });
 });
+
+
+app.post("/api/buses/:id/onboard", requireAuth, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const userId = req.user.userId; // Get the user ID from the token
+    const bus = await Bus.findOne({ id });
+    if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+
+    // Update user onboard status
+    await User.findByIdAndUpdate(userId, { isOnboard: true });
+
+    bus.passengers += 1; // Increment the passenger count
+    await bus.save();
+
+    // Notify driver or perform any other action needed
+    io.emit("passenger_onboard", { busId: id, count: bus.passengers });
+
+    return res.json({ ok: true, passengers: bus.passengers });
+  } catch (e) {
+    console.error("Onboard error:", e);
+    return res.status(500).json({ ok: false, message: "Onboard error" });
+  }
+});
+
+
+app.post("/api/buses/:id/dropoff", requireAuth, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const userId = req.user.userId; // Get the user ID from the token
+    const bus = await Bus.findOne({ id });
+    if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
+
+    // Update user onboard status
+    await User.findByIdAndUpdate(userId, { isOnboard: false });
+
+    bus.passengers = Math.max(0, bus.passengers - 1); // Decrement the passenger count
+    await bus.save();
+
+    // Notify driver or perform any other action needed
+    io.emit("passenger_dropoff", { busId: id, count: bus.passengers });
+
+    return res.json({ ok: true, passengers: bus.passengers });
+  } catch (e) {
+    console.error("Drop-off error:", e);
+    return res.status(500).json({ ok: false, message: "Drop-off error" });
+  }
+});
+
+
 
 // Update bus location/route
 app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
@@ -975,3 +1027,4 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
