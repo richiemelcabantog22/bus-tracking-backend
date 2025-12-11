@@ -19,9 +19,9 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.0",
     "socket.io": "^4.7.5",
-    "adminjs": "^7.8.17",
-    "@adminjs/express": "^6.0.0",
-    "@adminjs/mongoose": "^3.0.0"
+    "adminjs": "^5.8.0",
+  "@adminjs/express": "^3.3.0",
+  "@adminjs/mongoose": "^2.0.4"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
