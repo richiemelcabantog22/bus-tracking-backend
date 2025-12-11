@@ -14,7 +14,6 @@ const https = require("https");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { adminJs, adminRouter } = require('./admin');
 // --------------------------
 // ENV
 // --------------------------
@@ -30,7 +29,6 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(adminJs.options.rootPath, adminRouter);
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
