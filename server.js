@@ -252,34 +252,6 @@ function getOSRMRoute(startLat, startLng, endLat, endLng) {
   });
 }
 
-dashboard: {
-  handler: async () => {
-    const totalUsers = await User.countDocuments();
-    const totalDrivers = await Driver.countDocuments();
-    const totalBuses = await Bus.countDocuments();
-    const incidentsToday = await Incident.countDocuments({
-      timestamp: {
-        $gte: new Date(new Date().setHours(0, 0, 0, 0)),
-      },
-    });
-
-    // Simple example of "AI score"
-    const aiScore = Math.min(
-      100,
-      Math.round((incidentsToday / (totalBuses || 1)) * 40 + Math.random() * 20)
-    ); // fake anomaly model
-
-    return {
-      totalUsers,
-      totalDrivers,
-      totalBuses,
-      incidentsToday,
-      aiScore,
-    };
-  },
-  component: AdminJS.bundle("./admin/dashboard.jsx"),
-}
-
 
 function movementMonitoring(bus) {
   const now = Date.now();
