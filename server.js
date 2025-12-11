@@ -1,11 +1,7 @@
 // server.js
 // AI-Driven Smart Public Transport Tracker Backend
-// - MongoDB persistence (buses, drivers, incidents)
-// - JWT auth for drivers
-// - Forgot PIN + Reset PIN flow
-// - Headways and enriched analytics
-// - Socket.io live updates
-// server.js (converted to ESM for AdminJS v7+ on Render)
+// ESM-ready, AdminJS v7 + @adminjs/express v6 (sessionless), @adminjs/mongoose v4
+
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
@@ -14,18 +10,17 @@ import https from "https";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-
 import AdminJS from "adminjs";
 import AdminJSExpress from "@adminjs/express";
-import AdminJSMongoose from "@adminjs/mongoose";
-
+import { Database, Resource } from "@adminjs/mongoose";
 import dotenv from "dotenv";
 dotenv.config();
+
 // --------------------------
 // ENV
 // --------------------------
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://136.158.27.61/32";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/transtrack";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_jwt";
 const REQUIRE_AUTH = (process.env.REQUIRE_AUTH || "true").toLowerCase() === "true";
 const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
@@ -44,14 +39,19 @@ const io = new Server(server, { cors: { origin: "*" } });
 // MongoDB Models
 // --------------------------
 mongoose.set("strictQuery", true);
-try {
-  await mongoose.connect(MONGODB_URI);
-  console.log("MongoDB connected");
-  await seedDefaults(); // call your seed function if needed
-} catch (e) {
-  console.error("MongoDB connection error:", e);
+
+async function connectAndSeed() {
+  try {
+    await mongoose.connect(MONGODB_URI);
+    console.log("MongoDB connected");
+    await seedDefaults();
+  } catch (e) {
+    console.error("MongoDB connection error:", e);
+    // do not exit — allow server to start in some environments
+  }
 }
 
+// Schemas
 const BusSchema = new mongoose.Schema(
   {
     id: { type: String, unique: true, index: true },
@@ -64,24 +64,16 @@ const BusSchema = new mongoose.Schema(
     etaText: { type: String, default: null },
     isAtStation: { type: Boolean, default: false },
     currentStation: { type: String, default: null },
-
-    // movement tracking cache
     _lastLat: Number,
     _lastLng: Number,
     _lastMoveTime: Number,
-
-    // speed history (for drive pattern)
     _speedLat: Number,
     _speedLng: Number,
     _speedTime: Number,
     _speedHistory: [Number],
-
-    // passenger history (for forecasts)
     _history: [Number],
     _historyRecords: [{ t: Number, p: Number }],
     _lastHistoryValue: Number,
-
-    // derived cached fields (optional)
     movement: String,
     crowdFlow: String,
     crowdExplanation: String,
@@ -96,7 +88,6 @@ const DriverSchema = new mongoose.Schema(
     capacity: { type: Number, default: 40 },
     contactEmail: { type: String, default: null },
     contactPhone: { type: String, default: null },
-    // Reset PIN fields
     resetCode: { type: String, default: null },
     resetExpires: { type: Date, default: null },
   },
@@ -115,7 +106,6 @@ const IncidentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// NEW: User model for email/password accounts (does not affect Driver/Bus)
 const UserSchema = new mongoose.Schema(
   {
     name: { type: String, default: "" },
@@ -123,8 +113,8 @@ const UserSchema = new mongoose.Schema(
     passwordHash: String,
     role: { type: String, default: "user" },
     isOnboard: { type: Boolean, default: false },
-    currentBusId: { type: String, default: null },       
-    boardedAt: { type: Date, default: null },    
+    currentBusId: { type: String, default: null },
+    boardedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
@@ -138,112 +128,91 @@ const User = mongoose.model("User", UserSchema);
 // Seed defaults (DEV)
 // --------------------------
 async function seedDefaults() {
-  // Seed drivers and buses if empty
-  const countDrivers = await Driver.countDocuments();
-  if (countDrivers === 0) {
-    const defaults = [
-      "BUS-001",
-      "BUS-002",
-      "BUS-003",
-      "BUS-004",
-      "BUS-005",
-      "BUS-006",
-      "BUS-007",
-    ];
-    for (let i = 0; i < defaults.length; i++) {
-      const busId = defaults[i];
-      const pin = String(1000 + i); // 0001..0007 (DEV)
-      const pinHash = await bcrypt.hash(pin, 10);
-      await Driver.create({ busId, pinHash, capacity: 40 });
-      console.log(`Seeded driver ${busId} with PIN ${pin} (DEV)`);
+  try {
+    const countDrivers = await Driver.countDocuments();
+    if (countDrivers === 0) {
+      const defaults = [
+        "BUS-001",
+        "BUS-002",
+        "BUS-003",
+        "BUS-004",
+        "BUS-005",
+        "BUS-006",
+        "BUS-007",
+      ];
+      for (let i = 0; i < defaults.length; i++) {
+        const busId = defaults[i];
+        const pin = String(1000 + i);
+        const pinHash = await bcrypt.hash(pin, 10);
+        await Driver.create({ busId, pinHash, capacity: 40 });
+        console.log(`Seeded driver ${busId} with PIN ${pin} (DEV)`);
+      }
     }
-  }
 
-  const countBuses = await Bus.countDocuments();
-  if (countBuses === 0) {
-    const seedBuses = [
-      { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
-      { id: "BUS-002", lat: 14.415655, lng: 121.04618, passengers: 20, targetStation: "HM Bus Terminal - Laguna" },
-      { id: "BUS-003", lat: 14.415655, lng: 121.04618, passengers: 35, targetStation: "HM BUS Terminal - Calamba" },
-      { id: "BUS-004", lat: 14.415655, lng: 121.04618, passengers: 10, targetStation: "HM Transport Inc. Quezon City" },
-      { id: "BUS-005", lat: 14.265278, lng: 121.428961, passengers: 14, targetStation: "VTX - Vista Terminal Exchange Alabang" },
-      { id: "BUS-006", lat: 14.204603, lng: 121.156868, passengers: 30, targetStation: "VTX - Vista Terminal Exchange Alabang" },
-      { id: "BUS-007", lat: 14.623390644859652, lng: 121.04877752268187, passengers: 31, targetStation: "VTX - Vista Terminal Exchange Alabang" },
-    ];
-    await Bus.insertMany(seedBuses);
-    console.log("Seeded buses collection (DEV)");
+    const countBuses = await Bus.countDocuments();
+    if (countBuses === 0) {
+      const seedBuses = [
+        { id: "BUS-001", lat: 14.4096, lng: 121.039, passengers: 15 },
+        { id: "BUS-002", lat: 14.415655, lng: 121.04618, passengers: 20, targetStation: "HM Bus Terminal - Laguna" },
+        { id: "BUS-003", lat: 14.415655, lng: 121.04618, passengers: 35, targetStation: "HM BUS Terminal - Calamba" },
+        { id: "BUS-004", lat: 14.415655, lng: 121.04618, passengers: 10, targetStation: "HM Transport Inc. Quezon City" },
+        { id: "BUS-005", lat: 14.265278, lng: 121.428961, passengers: 14, targetStation: "VTX - Vista Terminal Exchange Alabang" },
+        { id: "BUS-006", lat: 14.204603, lng: 121.156868, passengers: 30, targetStation: "VTX - Vista Terminal Exchange Alabang" },
+        { id: "BUS-007", lat: 14.623390644859652, lng: 121.04877752268187, passengers: 31, targetStation: "VTX - Vista Terminal Exchange Alabang" },
+      ];
+      await Bus.insertMany(seedBuses);
+      console.log("Seeded buses collection (DEV)");
+    }
+  } catch (e) {
+    console.error("seedDefaults error:", e);
   }
 }
 
 // --------------------------
-// AdminJS Setup
+// AdminJS Setup (v7 + @adminjs/mongoose v4)
 // --------------------------
-AdminJS.registerAdapter(AdminJSMongoose);
+AdminJS.registerAdapter({ Database, Resource });
 
 const adminJs = new AdminJS({
   databases: [mongoose],
   rootPath: "/admin",
-  branding: {
-    companyName: "TransTrack Admin",
-  },
+  branding: { companyName: "TransTrack Admin" },
 });
 
-const adminRouter = AdminJSExpress.buildAuthenticatedRouter(adminJs, {
-  authenticate: async (email, password) => {
-    if (email === "admin" && password === ADMIN_KEY) {
-      return { email: "admin" };
-    }
-    return null;
-  },
-  cookieName: "adminjs",
-  cookiePassword: process.env.ADMIN_COOKIE_SECRET || "some-secret-password",
-});
+// Build router from @adminjs/express (this returns an express.Router)
+const adminBaseRouter = AdminJSExpress.buildRouter(adminJs);
 
-app.use(adminJs.options.rootPath, adminRouter);
+// Lightweight sessionless protection middleware for Admin UI
+function adminAuthMiddleware(req, res, next) {
+  // Allow disabling protection for dev
+  if (!REQUIRE_AUTH) return next();
+  const key = req.headers["x-admin-key"] || req.query.admin_key || req.cookies?.admin_key;
+  if (key && key === ADMIN_KEY) return next();
+  // For UI assets or initial page requests, respond with 401 so user can't access Admin UI
+  res.status(401).send("Unauthorized - missing or invalid admin key");
+}
+
+// Mount admin UI behind adminAuthMiddleware
+app.use(adminJs.options.rootPath, adminAuthMiddleware, adminBaseRouter);
 
 // --------------------------
 // Static stations table
 // --------------------------
 const STATION = {
-  VTX: {
-    name: "VTX - Vista Terminal Exchange Alabang",
-    lat: 14.415655,
-    lng: 121.04618,
-    radius: 50,
-  },
-  "HM-Laguna": {
-    name: "HM Bus Terminal - Laguna",
-    lat: 14.265278,
-    lng: 121.428961,
-    radius: 50,
-  },
-  "HM-Calamba": {
-    name: "HM BUS Terminal - Calamba",
-    lat: 14.204603,
-    lng: 121.156868,
-    radius: 50,
-  },
-  "HM-Quezon": {
-    name: "HM Transport Inc. Quezon City",
-    lat: 14.623390644859652,
-    lng: 121.04877752268187,
-    radius: 50,
-  },
+  VTX: { name: "VTX - Vista Terminal Exchange Alabang", lat: 14.415655, lng: 121.04618, radius: 50 },
+  "HM-Laguna": { name: "HM Bus Terminal - Laguna", lat: 14.265278, lng: 121.428961, radius: 50 },
+  "HM-Calamba": { name: "HM BUS Terminal - Calamba", lat: 14.204603, lng: 121.156868, radius: 50 },
+  "HM-Quezon": { name: "HM Transport Inc. Quezon City", lat: 14.623390644859652, lng: 121.04877752268187, radius: 50 },
 };
 
 // --------------------------
-// Helpers
+// Helpers & Analytics (kept original logic)
 // --------------------------
 function distanceMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -262,37 +231,27 @@ function detectStation(bus) {
   bus.currentStation = null;
 }
 
-// OSRM route fetcher (HTTPS)
 function getOSRMRoute(startLat, startLng, endLat, endLng) {
   return new Promise((resolve) => {
     const url = `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`;
-    https
-      .get(url, (res) => {
-        let raw = "";
-        res.on("data", (chunk) => (raw += chunk));
-        res.on("end", () => {
-          try {
-            const json = JSON.parse(raw);
-            if (!json.routes || !json.routes[0]) return resolve(null);
-            const r = json.routes[0];
-            const coords = r.geometry.coordinates.map((c) => ({ lat: c[1], lng: c[0] }));
-            resolve({
-              polyline: coords,
-              duration: r.duration,
-              distance: r.distance,
-            });
-          } catch {
-            resolve(null);
-          }
-        });
-      })
-      .on("error", () => resolve(null));
+    https.get(url, (res) => {
+      let raw = "";
+      res.on("data", (chunk) => (raw += chunk));
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(raw);
+          if (!json.routes || !json.routes[0]) return resolve(null);
+          const r = json.routes[0];
+          const coords = r.geometry.coordinates.map((c) => ({ lat: c[1], lng: c[0] }));
+          resolve({ polyline: coords, duration: r.duration, distance: r.distance });
+        } catch {
+          resolve(null);
+        }
+      });
+    }).on("error", () => resolve(null));
   });
 }
 
-// --------------------------
-// Analytics helpers (unchanged logic, bus persisted)
-// --------------------------
 function movementMonitoring(bus) {
   const now = Date.now();
   if (bus._lastLat == null || bus._lastLng == null) {
@@ -323,22 +282,13 @@ function movementMonitoring(bus) {
 }
 
 function predictPassengers(bus) {
-  const current = bus.passengers;
-  const hour = new Date().toLocaleString("en-US", {
-    timeZone: "Asia/Manila",
-    hour: "numeric",
-    hour12: false,
-  });
+  const current = bus.passengers || 0;
+  const hour = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila", hour: "numeric", hour12: false });
   let rushFactor = 1.0;
   if (hour >= 6 && hour <= 9) rushFactor = 1.35;
   if (hour >= 17 && hour <= 20) rushFactor = 1.5;
 
-  const nearTerminal =
-    bus.lat >= 14.410 &&
-    bus.lat <= 14.420 &&
-    bus.lng >= 121.035 &&
-    bus.lng <= 121.048;
-
+  const nearTerminal = bus.lat >= 14.410 && bus.lat <= 14.420 && bus.lng >= 121.035 && bus.lng <= 121.048;
   const terminalBoost = nearTerminal ? 1.25 : 1.0;
   const prediction = Math.round(current * rushFactor * terminalBoost);
   return Math.min(prediction, 40);
@@ -380,12 +330,10 @@ function explainCrowdChange(bus) {
 
 function classifyDrivePattern(bus) {
   bus._speedHistory = bus._speedHistory || [];
-
   const now = Date.now();
   const lastLat = bus._speedLat ?? bus.lat;
   const lastLng = bus._speedLng ?? bus.lng;
   const dt = ((now - (bus._speedTime || now)) / 1000) || 1;
-
   const dist = Math.abs(bus.lat - lastLat) + Math.abs(bus.lng - lastLng);
   const meters = dist * 111000;
   const speed = meters / dt;
@@ -400,9 +348,7 @@ function classifyDrivePattern(bus) {
   if (bus._speedHistory.length < 4) return "unknown";
 
   const avg = bus._speedHistory.reduce((a, b) => a + b) / bus._speedHistory.length;
-  const variance =
-    bus._speedHistory.map((v) => Math.abs(v - avg)).reduce((a, b) => a + b) /
-    bus._speedHistory.length;
+  const variance = bus._speedHistory.map((v) => Math.abs(v - avg)).reduce((a, b) => a + b) / bus._speedHistory.length;
 
   if (variance < 0.4 && avg > 4) return "Smooth";
   if (variance > 2.2) return "Aggressive";
@@ -441,9 +387,7 @@ function pushHistoryRecord(bus) {
   bus._historyRecords = bus._historyRecords || [];
   if (bus.passengers !== bus._lastHistoryValue) {
     bus._historyRecords.push({ t: Date.now(), p: bus.passengers });
-    if (bus._historyRecords.length > 30) {
-      bus._historyRecords = bus._historyRecords.slice(-30);
-    }
+    if (bus._historyRecords.length > 30) bus._historyRecords = bus._historyRecords.slice(-30);
     bus._lastHistoryValue = bus.passengers;
   }
 }
@@ -454,20 +398,16 @@ function forecastPassengers(bus, minutes) {
     const base = predictPassengers(bus);
     return { predicted: base, confidence: 0.5 };
   }
-
   const last = rec[rec.length - 1];
   const prev = rec[rec.length - 2];
   const dt = (last.t - prev.t) / 1000;
   const dp = last.p - prev.p;
   const ratePerSec = dt === 0 ? 0 : dp / dt;
-
   const secondsAhead = minutes * 60;
   let predicted = last.p + ratePerSec * secondsAhead;
-
   const baseline = predictPassengers(bus);
   const weight = Math.min(0.6, 0.1 * rec.length);
   predicted = Math.round(baseline * (1 - weight) + predicted * weight);
-
   predicted = Math.max(0, Math.min(40, predicted));
   const confidence = Math.min(0.95, 0.4 + 0.12 * rec.length);
   return { predicted, confidence };
@@ -509,7 +449,6 @@ function delayReasonAI(bus) {
   return "Normal conditions";
 }
 
-// Headways
 function computeHeadways(arr) {
   const groups = new Map();
   for (const b of arr) {
@@ -521,11 +460,8 @@ function computeHeadways(arr) {
   for (const [, list] of groups) {
     for (const b of list) {
       const station = Object.values(STATION).find((s) => s.name === b.targetStation);
-      if (station) {
-        b._distToDest = distanceMeters(b.lat, b.lng, station.lat, station.lng);
-      } else {
-        b._distToDest = Infinity;
-      }
+      if (station) b._distToDest = distanceMeters(b.lat, b.lng, station.lat, station.lng);
+      else b._distToDest = Infinity;
     }
     list.sort((a, b) => (a._distToDest || Infinity) - (b._distToDest || Infinity));
 
@@ -538,7 +474,7 @@ function computeHeadways(arr) {
       } else {
         const ahead = list[i - 1];
         const gapMeters = Math.max(0, (bus._distToDest || 0) - (ahead._distToDest || 0));
-        const estSeconds = Math.round(gapMeters / 10); // ~36km/h
+        const estSeconds = Math.round(gapMeters / 10);
         bus.headwayMeters = Math.round(gapMeters);
         bus.headwayAheadId = ahead.id;
         bus.headwayEtaSeconds = estSeconds;
@@ -548,20 +484,17 @@ function computeHeadways(arr) {
   for (const b of arr) delete b._distToDest;
 }
 
-// Build enriched snapshot from DB
 async function buildEnriched() {
   const buses = await Bus.find({}).lean();
 
   const enriched = buses.map((b) => {
     detectStation(b);
     if (!b._historyRecords) b._historyRecords = [];
-
     const anomalies = detectAnomalies(b);
     const predicted = predictPassengers(b);
     const movement = movementMonitoring(b);
     const crowdFlow = predictCrowdFlow(b);
     const drivePattern = classifyDrivePattern(b);
-
     const f5 = forecastPassengers(b, 5);
     const f10 = forecastPassengers(b, 10);
 
@@ -573,12 +506,7 @@ async function buildEnriched() {
       else delayState = "on-time";
     }
 
-    const safety = computeDriverSafetyScore({
-      ...b,
-      anomalies,
-      crowdFlow,
-      drivePattern,
-    });
+    const safety = computeDriverSafetyScore({ ...b, anomalies, crowdFlow, drivePattern });
 
     return {
       ...b,
@@ -617,9 +545,6 @@ async function buildEnriched() {
   return enriched;
 }
 
-// --------------------------
-// Driver Safety Scoring (existing)
-// --------------------------
 function computeDriverSafetyScore(bus) {
   const anomalies = bus.anomalies || [];
   const crowdFlow = bus.crowdFlow || "stable";
@@ -628,57 +553,23 @@ function computeDriverSafetyScore(bus) {
   let score = 100;
   const notes = [];
 
-  // Anomalies impact
   for (const a of anomalies) {
-    if (a.code === "overcrowding") {
-      score -= 15;
-      notes.push("Overcrowding detected");
-    }
-    if (a.code === "gps_jump") {
-      score -= 10;
-      notes.push("GPS jumps observed");
-    }
-    if (a.code === "spike") {
-      score -= 8;
-      notes.push("Passenger spike");
-    }
-    if (a.code === "low") {
-      // low passenger count doesn't affect safety
-    }
+    if (a.code === "overcrowding") { score -= 15; notes.push("Overcrowding detected"); }
+    if (a.code === "gps_jump") { score -= 10; notes.push("GPS jumps observed"); }
+    if (a.code === "spike") { score -= 8; notes.push("Passenger spike"); }
   }
 
-  // Crowd flow impact
-  if (crowdFlow === "spike") {
-    score -= 6;
-    notes.push("Crowd spike");
-  } else if (crowdFlow === "drop") {
-    score -= 3;
-    notes.push("Crowd drop");
-  } else if (crowdFlow === "increasing") {
-    score -= 2;
-  } else if (crowdFlow === "decreasing") {
-    // minor positive impact
-    score += 1;
-  }
+  if (crowdFlow === "spike") { score -= 6; notes.push("Crowd spike"); }
+  else if (crowdFlow === "drop") { score -= 3; notes.push("Crowd drop"); }
+  else if (crowdFlow === "increasing") { score -= 2; }
+  else if (crowdFlow === "decreasing") { score += 1; }
 
-  // Drive pattern impact
-  if (drivePattern === "Aggressive") {
-    score -= 25;
-    notes.push("Aggressive driving pattern");
-  } else if (drivePattern === "Stop-and-go") {
-    score -= 12;
-    notes.push("Stop-and-go driving");
-  } else if (drivePattern === "Idle-too-long") {
-    score -= 5;
-    notes.push("Idle too long");
-  } else if (drivePattern === "Drifting") {
-    score -= 8;
-    notes.push("Unstable driving (drifting)");
-  } else if (drivePattern === "Smooth") {
-    score += 5;
-  }
+  if (drivePattern === "Aggressive") { score -= 25; notes.push("Aggressive driving pattern"); }
+  else if (drivePattern === "Stop-and-go") { score -= 12; notes.push("Stop-and-go driving"); }
+  else if (drivePattern === "Idle-too-long") { score -= 5; notes.push("Idle too long"); }
+  else if (drivePattern === "Drifting") { score -= 8; notes.push("Unstable driving (drifting)"); }
+  else if (drivePattern === "Smooth") { score += 5; }
 
-  // Clamp score
   score = Math.max(0, Math.min(100, score));
 
   let rating = "Excellent";
@@ -709,11 +600,6 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ ok: false, message: "Invalid token" });
   }
 }
-
-// Middleware to require user auth (email/password user)
-// Fix requireUserAuth middleware to safely handle missing or invalid payload
-
-// Add debug prints inside requireUserAuth middleware
 
 function requireUserAuth(req, res, next) {
   if (!REQUIRE_AUTH) return next();
@@ -763,13 +649,11 @@ function requireUserAuth(req, res, next) {
   }
 }
 
-
+// Socket auth
 io.use((socket, next) => {
   if (!REQUIRE_AUTH) return next();
   try {
-    const authToken =
-      (socket.handshake.auth && socket.handshake.auth.token) ||
-      (socket.handshake.headers && (socket.handshake.headers.authorization || "").replace("Bearer ", ""));
+    const authToken = (socket.handshake.auth && socket.handshake.auth.token) || (socket.handshake.headers && (socket.handshake.headers.authorization || "").replace("Bearer ", ""));
     if (!authToken) return next(new Error("Unauthorized"));
     const payload = jwt.verify(authToken, JWT_SECRET);
     socket.data.user = payload;
@@ -787,49 +671,30 @@ app.get("/", (req, res) => {
 });
 
 // Auth: login
-// Extended to support user email/password login WITHOUT breaking driver login (busId+pin)
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { busId, pin, password, email } = req.body || {};
-
-    // User login branch (email/password) when busId is not provided
     if (email && password && !busId) {
       try {
         const normalizedEmail = String(email).toLowerCase().trim();
         const user = await User.findOne({ email: normalizedEmail });
         if (!user) return res.status(404).json({ ok: false, message: "User not found" });
-
         const ok = await bcrypt.compare(String(password), user.passwordHash);
         if (!ok) return res.status(401).json({ ok: false, message: "Invalid email or password" });
-
-        // CHANGED: ensure userId is a string in the JWT payload
-        const token = jwt.sign(
-          { userId: String(user._id), email: user.email },   // <-- changed
-          JWT_SECRET,
-          { expiresIn: "7d" }
-        );
-        return res.json({
-          ok: true,
-          token,
-          user: { id: user._id, name: user.name, email: user.email },
-        });
+        const token = jwt.sign({ userId: String(user._id), email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+        return res.json({ ok: true, token, user: { id: user._id, name: user.name, email: user.email } });
       } catch (e) {
         console.error("User login error:", e);
         return res.status(500).json({ ok: false, message: "Login error" });
       }
     }
 
-    // Existing: driver login (busId + pin/password)
     const provided = pin || password;
-    if (!busId || !provided) {
-      return res.status(400).json({ ok: false, message: "Missing busId or pin/password" });
-    }
+    if (!busId || !provided) return res.status(400).json({ ok: false, message: "Missing busId or pin/password" });
     const driver = await Driver.findOne({ busId });
     if (!driver) return res.status(404).json({ ok: false, message: "Unknown busId" });
-
     const ok = await bcrypt.compare(String(provided), driver.pinHash);
     if (!ok) return res.status(401).json({ ok: false, message: "Invalid PIN" });
-
     const token = jwt.sign({ busId }, JWT_SECRET, { expiresIn: "7d" });
     return res.json({ ok: true, token, capacity: driver.capacity });
   } catch (e) {
@@ -837,56 +702,37 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(500).json({ ok: false, message: "Login error" });
   }
 });
-// Auth: signup (new user email/password accounts)
+
+// Auth: signup
 app.post("/api/auth/signup", async (req, res) => {
   try {
     const { name, email, password } = req.body || {};
-    if (!name || !email || !password) {
-      return res.status(400).json({ ok: false, message: "Missing name, email or password" });
-    }
-
+    if (!name || !email || !password) return res.status(400).json({ ok: false, message: "Missing name, email or password" });
     const normalizedEmail = String(email).toLowerCase().trim();
     const existing = await User.findOne({ email: normalizedEmail });
-    if (existing) {
-      return res.status(409).json({ ok: false, message: "Email already registered" });
-    }
-
+    if (existing) return res.status(409).json({ ok: false, message: "Email already registered" });
     const passwordHash = await bcrypt.hash(String(password), 10);
-    const user = await User.create({
-      name: String(name).trim(),
-      email: normalizedEmail,
-      passwordHash,
-    });
-
+    const user = await User.create({ name: String(name).trim(), email: normalizedEmail, passwordHash });
     const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
-    return res.status(201).json({
-      ok: true,
-      token,
-      user: { id: user._id, name: user.name, email: user.email },
-    });
+    return res.status(201).json({ ok: true, token, user: { id: user._id, name: user.name, email: user.email } });
   } catch (e) {
     console.error("Signup error:", e);
     return res.status(500).json({ ok: false, message: "Signup error" });
   }
 });
 
-// Auth: forgot PIN (generate reset code)
+// Auth: forgot PIN
 app.post("/api/auth/forgot", async (req, res) => {
   try {
     const { busId } = req.body || {};
     if (!busId) return res.status(400).json({ ok: false, message: "Missing busId" });
     const driver = await Driver.findOne({ busId });
     if (!driver) return res.status(404).json({ ok: false, message: "Unknown busId" });
-
-    // generate 6-digit code
     const code = String(Math.floor(100000 + Math.random() * 900000));
     driver.resetCode = code;
-    driver.resetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    driver.resetExpires = new Date(Date.now() + 15 * 60 * 1000);
     await driver.save();
-
-    // TODO: send code via email/SMS (driver.contactEmail/contactPhone)
     console.log(`Reset code for ${busId}: ${code} (valid 15m)`);
-
     return res.json({ ok: true, message: "Reset code generated" });
   } catch (e) {
     console.error("Forgot error:", e);
@@ -894,31 +740,20 @@ app.post("/api/auth/forgot", async (req, res) => {
   }
 });
 
-// Auth: reset PIN (verify code)
+// Auth: reset PIN
 app.post("/api/auth/reset", async (req, res) => {
   try {
     const { busId, code, newPin } = req.body || {};
-    if (!busId || !code || !newPin) {
-      return res.status(400).json({ ok: false, message: "Missing busId, code or newPin" });
-    }
+    if (!busId || !code || !newPin) return res.status(400).json({ ok: false, message: "Missing busId, code or newPin" });
     const driver = await Driver.findOne({ busId });
     if (!driver) return res.status(404).json({ ok: false, message: "Unknown busId" });
-
-    if (!driver.resetCode || !driver.resetExpires) {
-      return res.status(400).json({ ok: false, message: "No reset code requested" });
-    }
-    if (driver.resetCode !== String(code)) {
-      return res.status(401).json({ ok: false, message: "Invalid code" });
-    }
-    if (driver.resetExpires.getTime() < Date.now()) {
-      return res.status(401).json({ ok: false, message: "Code expired" });
-    }
-
+    if (!driver.resetCode || !driver.resetExpires) return res.status(400).json({ ok: false, message: "No reset code requested" });
+    if (driver.resetCode !== String(code)) return res.status(401).json({ ok: false, message: "Invalid code" });
+    if (driver.resetExpires.getTime() < Date.now()) return res.status(401).json({ ok: false, message: "Code expired" });
     driver.pinHash = await bcrypt.hash(String(newPin), 10);
     driver.resetCode = null;
     driver.resetExpires = null;
     await driver.save();
-
     return res.json({ ok: true, message: "PIN updated" });
   } catch (e) {
     console.error("Reset error:", e);
@@ -933,13 +768,8 @@ app.post("/api/auth/set-pin", async (req, res) => {
     if (!key || key !== ADMIN_KEY) return res.status(403).json({ ok: false, message: "Forbidden" });
     const { busId, pin } = req.body || {};
     if (!busId || !pin) return res.status(400).json({ ok: false, message: "Missing busId or pin" });
-
     const pinHash = await bcrypt.hash(String(pin), 10);
-    const driver = await Driver.findOneAndUpdate(
-      { busId },
-      { $set: { pinHash } },
-      { upsert: false, new: true }
-    );
+    const driver = await Driver.findOneAndUpdate({ busId }, { $set: { pinHash } }, { upsert: false, new: true });
     if (!driver) return res.status(404).json({ ok: false, message: "Unknown busId" });
     return res.json({ ok: true, message: `PIN set for ${busId}` });
   } catch (e) {
@@ -957,17 +787,8 @@ app.get("/api/buses", async (req, res) => {
 // Incidents
 app.post("/api/incidents", async (req, res) => {
   const { busId, category, details, lat, lng, timestamp } = req.body || {};
-  if (!busId || !category) {
-    return res.status(400).json({ ok: false, message: "Missing busId or category" });
-  }
-  await Incident.create({
-    busId,
-    category,
-    details: details || "",
-    lat: lat ?? null,
-    lng: lng ?? null,
-    timestamp: timestamp ? new Date(timestamp) : new Date(),
-  });
+  if (!busId || !category) return res.status(400).json({ ok: false, message: "Missing busId or category" });
+  await Incident.create({ busId, category, details: details || "", lat: lat ?? null, lng: lng ?? null, timestamp: timestamp ? new Date(timestamp) : new Date() });
   io.emit("incident", { busId, category, details, lat, lng, timestamp });
   res.status(201).json({ ok: true });
 });
@@ -977,23 +798,13 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
   try {
     const id = req.params.id;
     const { lat, lng, passengers, targetStation, route } = req.body || {};
-    if (lat === undefined || lng === undefined || passengers === undefined) {
-      return res.status(400).json({ ok: false, message: "Missing lat, lng, or passengers" });
-    }
-
+    if (lat === undefined || lng === undefined || passengers === undefined) return res.status(400).json({ ok: false, message: "Missing lat, lng, or passengers" });
     const bus = await Bus.findOne({ id });
     if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
-
     bus.lat = lat;
     bus.lng = lng;
     bus.passengers = passengers;
-
-    // client-provided route
-    if (Array.isArray(route) && route.length >= 2) {
-      bus.route = route.map((p) => ({ lat: p.lat, lng: p.lng }));
-    }
-
-    // target station update
+    if (Array.isArray(route) && route.length >= 2) bus.route = route.map((p) => ({ lat: p.lat, lng: p.lng }));
     if (targetStation) {
       bus.targetStation = targetStation;
       const stations = {
@@ -1017,7 +828,6 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
       }
     }
 
-    // history & movement updates
     bus._history = bus._history || [];
     if (bus._history[0] !== bus.passengers) bus._history.unshift(bus.passengers);
     if (bus._history.length > 5) bus._history = bus._history.slice(0, 5);
@@ -1029,7 +839,6 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
 
     await bus.save();
 
-    // Broadcast enriched snapshot
     const enriched = await buildEnriched();
     io.emit("buses_update", enriched);
 
@@ -1040,39 +849,21 @@ app.post("/api/buses/:id/update", requireAuth, async (req, res) => {
   }
 });
 
-// Remove requireUserAuth middleware from onboard and dropoff routes
-// Accept userId in request body to identify user
-
+// Onboard / Dropoff (accept userId in body)
 app.post("/api/buses/:id/onboard", async (req, res) => {
   try {
     const busId = req.params.id;
     const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ ok: false, message: "Missing userId" });
-    }
-
+    if (!userId) return res.status(400).json({ ok: false, message: "Missing userId" });
     const bus = await Bus.findOne({ id: busId });
-    if (!bus) {
-      return res.status(404).json({ ok: false, message: "Bus not found" });
-    }
-
+    if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ ok: false, message: "User not found" });
-    }
-
+    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
     user.isOnboard = true;
     user.currentBusId = busId;
     user.boardedAt = new Date();
     await user.save();
-
-    return res.json({
-      ok: true,
-      isOnboard: true,
-      busId,
-      user: { id: user._id, email: user.email },
-    });
+    return res.json({ ok: true, isOnboard: true, busId, user: { id: user._id, email: user.email } });
   } catch (e) {
     console.error("Onboard error:", e);
     return res.status(500).json({ ok: false, message: "Onboard error" });
@@ -1083,53 +874,28 @@ app.post("/api/buses/:id/dropoff", async (req, res) => {
   try {
     const busId = req.params.id;
     const { userId } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ ok: false, message: "Missing userId" });
-    }
-
+    if (!userId) return res.status(400).json({ ok: false, message: "Missing userId" });
     const bus = await Bus.findOne({ id: busId });
-    if (!bus) {
-      return res.status(404).json({ ok: false, message: "Bus not found" });
-    }
-
+    if (!bus) return res.status(404).json({ ok: false, message: "Bus not found" });
     const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ ok: false, message: "User not found" });
-    }
-
+    if (!user) return res.status(404).json({ ok: false, message: "User not found" });
     user.isOnboard = false;
     user.currentBusId = null;
     user.boardedAt = null;
     await user.save();
-
-    return res.json({
-      ok: true,
-      isOnboard: false,
-      busId,
-      user: { id: user._id, email: user.email },
-    });
+    return res.json({ ok: true, isOnboard: false, busId, user: { id: user._id, email: user.email } });
   } catch (e) {
     console.error("Dropoff error:", e);
     return res.status(500).json({ ok: false, message: "Dropoff error" });
   }
 });
 
-// Optional: verify user state quickly
+// Verify user state
 app.get("/api/me", requireUserAuth, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).lean();
     if (!user) return res.status(404).json({ ok: false, message: "User not found" });
-    return res.json({
-      ok: true,
-      user: {
-        id: user._id,
-        email: user.email,
-        isOnboard: !!user.isOnboard,
-        currentBusId: user.currentBusId,
-        boardedAt: user.boardedAt,
-      },
-    });
+    return res.json({ ok: true, user: { id: user._id, email: user.email, isOnboard: !!user.isOnboard, currentBusId: user.currentBusId, boardedAt: user.boardedAt } });
   } catch (e) {
     console.error("Get me error:", e);
     return res.status(500).json({ ok: false, message: "Get me error" });
@@ -1141,7 +907,7 @@ app.get("/api/me", requireUserAuth, async (req, res) => {
 // --------------------------
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
-  buildEnriched().then((data) => socket.emit("buses_update", data));
+  buildEnriched().then((data) => socket.emit("buses_update", data)).catch(() => {});
 
   socket.on("driver_join", async (payload) => {
     try {
@@ -1155,24 +921,15 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("disconnect", () => {
-    // cleanup if needed
-  });
+  socket.on("disconnect", () => {});
 });
 
 // --------------------------
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Start
+// --------------------------
+connectAndSeed().finally(() => {
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`AdminJS available at ${adminJs.options.rootPath} (protected by x-admin-key header)`);
+  });
 });
-
-
-
-
-
-
-
-
-
-
-
-
