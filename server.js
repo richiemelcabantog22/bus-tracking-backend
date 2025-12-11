@@ -252,34 +252,33 @@ function getOSRMRoute(startLat, startLng, endLat, endLng) {
   });
 }
 
-
 dashboard: {
   handler: async () => {
-    // Fetch data
-    const buses = await Bus.find();
-    const incidents = await Incident.find();
-    const drivers = await Driver.find();
+    const totalUsers = await User.countDocuments();
+    const totalDrivers = await Driver.countDocuments();
+    const totalBuses = await Bus.countDocuments();
+    const incidentsToday = await Incident.countDocuments({
+      timestamp: {
+        $gte: new Date(new Date().setHours(0, 0, 0, 0)),
+      },
+    });
 
-    // AI-like analytics
-    const mostDelayedBus = buses.sort((a, b) => b.delay - a.delay)[0];
-    const mostCrowdedBus = buses.sort((a, b) => b.passengerCount - a.passengerCount)[0];
-
-    const topDriver =
-      drivers.sort((a, b) => (b.safetyScore || 0) - (a.safetyScore || 0))[0];
+    // Simple example of "AI score"
+    const aiScore = Math.min(
+      100,
+      Math.round((incidentsToday / (totalBuses || 1)) * 40 + Math.random() * 20)
+    ); // fake anomaly model
 
     return {
-      ai: {
-        mostDelayedBus: mostDelayedBus || null,
-        mostCrowdedBus: mostCrowdedBus || null,
-        topDriver: topDriver || null,
-        totalIncidents: incidents.length,
-      },
+      totalUsers,
+      totalDrivers,
+      totalBuses,
+      incidentsToday,
+      aiScore,
     };
   },
-
-  component: AdminJS.bundle("./components/AIDashboard.jsx"),
-},
-
+  component: AdminJS.bundle("./admin/dashboard.jsx"),
+}
 
 
 function movementMonitoring(bus) {
