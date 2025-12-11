@@ -195,8 +195,12 @@ const componentLoader = new ComponentLoader();
 
 // Register custom dashboard
 const Components = {
-  Dashboard: componentLoader.add("Dashboard", "./admin-dashboard.jsx"),
+  Dashboard: componentLoader.add(
+    "Dashboard",
+    path.join(__dirname, "admin-dashboard.jsx")
+  ),
 };
+
 
 // AdminJS Instance
 const adminJs = new AdminJS({
