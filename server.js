@@ -252,6 +252,36 @@ function getOSRMRoute(startLat, startLng, endLat, endLng) {
   });
 }
 
+
+dashboard: {
+  handler: async () => {
+    // Fetch data
+    const buses = await Bus.find();
+    const incidents = await Incident.find();
+    const drivers = await Driver.find();
+
+    // AI-like analytics
+    const mostDelayedBus = buses.sort((a, b) => b.delay - a.delay)[0];
+    const mostCrowdedBus = buses.sort((a, b) => b.passengerCount - a.passengerCount)[0];
+
+    const topDriver =
+      drivers.sort((a, b) => (b.safetyScore || 0) - (a.safetyScore || 0))[0];
+
+    return {
+      ai: {
+        mostDelayedBus: mostDelayedBus || null,
+        mostCrowdedBus: mostCrowdedBus || null,
+        topDriver: topDriver || null,
+        totalIncidents: incidents.length,
+      },
+    };
+  },
+
+  component: AdminJS.bundle("./components/AIDashboard.jsx"),
+},
+
+
+
 function movementMonitoring(bus) {
   const now = Date.now();
   if (bus._lastLat == null || bus._lastLng == null) {
