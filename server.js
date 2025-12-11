@@ -18,7 +18,7 @@ const jwt = require("jsonwebtoken");
 // ENV
 // --------------------------
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://136.158.27.61/32";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://richiepogi22_db_user:Fab59qbAdMU9VqTH@136.158.27.61:27017/32?authSource=admin";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_jwt";
 const REQUIRE_AUTH = (process.env.REQUIRE_AUTH || "true").toLowerCase() === "true";
 const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
