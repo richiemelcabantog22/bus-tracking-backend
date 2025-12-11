@@ -182,6 +182,11 @@ async function seedDefaults() {
 // --------------------------
 AdminJS.registerAdapter({ Database, Resource });
 
+// --------------------------
+// AdminJS Setup
+// --------------------------
+AdminJS.registerAdapter({ Database, Resource });
+
 const adminJs = new AdminJS({
   databases: [mongoose],
   rootPath: "/admin",
@@ -214,6 +219,16 @@ const adminJs = new AdminJS({
     component: AdminJS.bundle("./admin-dashboard.jsx"),
   },
 });
+
+// ---------------------------------------------
+// DEV-ONLY RELOAD / BUNDLE (must be AFTER adminJs)
+// ---------------------------------------------
+if (process.env.NODE_ENV !== "production") {
+  adminJs.watch();
+}
+
+adminJs.bundle("./admin-dashboard.jsx", "admin-dashboard.jsx");
+
 
 // Build router from @adminjs/express (this returns an express.Router)
 const adminBaseRouter = AdminJSExpress.buildRouter(adminJs);
