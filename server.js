@@ -14,7 +14,7 @@ const https = require("https");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { forestExpress } = require('forest-express-mongoose');
+const forestExpress = require('forest-express-mongoose').default;
 // --------------------------
 // ENV
 // --------------------------
