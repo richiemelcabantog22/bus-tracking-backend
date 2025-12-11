@@ -5,20 +5,27 @@
 // - Forgot PIN + Reset PIN flow
 // - Headways and enriched analytics
 // - Socket.io live updates
+// server.js (converted to ESM for AdminJS v7+ on Render)
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import cors from "cors";
+import https from "https";
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const cors = require("cors");
-const https = require("https");
-const mongoose = require("mongoose");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+import AdminJS from "adminjs";
+import AdminJSExpress from "@adminjs/express";
+import AdminJSMongoose from "@adminjs/mongoose";
+
+import dotenv from "dotenv";
+dotenv.config();
 // --------------------------
 // ENV
 // --------------------------
 const PORT = process.env.PORT || 3000;
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://richiepogi22_db_user:Fab59qbAdMU9VqTH@136.158.27.61:27017/32?authSource=admin";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://136.158.27.61/32";
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_jwt";
 const REQUIRE_AUTH = (process.env.REQUIRE_AUTH || "true").toLowerCase() === "true";
 const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
@@ -37,13 +44,13 @@ const io = new Server(server, { cors: { origin: "*" } });
 // MongoDB Models
 // --------------------------
 mongoose.set("strictQuery", true);
-mongoose
-  .connect(MONGODB_URI)
-  .then(async () => {
-    console.log("MongoDB connected");
-    await seedDefaults();
-  })
-  .catch((e) => console.error("MongoDB connection error:", e));
+try {
+  await mongoose.connect(MONGODB_URI);
+  console.log("MongoDB connected");
+  await seedDefaults(); // call your seed function if needed
+} catch (e) {
+  console.error("MongoDB connection error:", e);
+}
 
 const BusSchema = new mongoose.Schema(
   {
@@ -167,6 +174,32 @@ async function seedDefaults() {
     console.log("Seeded buses collection (DEV)");
   }
 }
+
+// --------------------------
+// AdminJS Setup
+// --------------------------
+AdminJS.registerAdapter(AdminJSMongoose);
+
+const adminJs = new AdminJS({
+  databases: [mongoose],
+  rootPath: "/admin",
+  branding: {
+    companyName: "TransTrack Admin",
+  },
+});
+
+const adminRouter = AdminJSExpress.buildAuthenticatedRouter(adminJs, {
+  authenticate: async (email, password) => {
+    if (email === "admin" && password === ADMIN_KEY) {
+      return { email: "admin" };
+    }
+    return null;
+  },
+  cookieName: "adminjs",
+  cookiePassword: process.env.ADMIN_COOKIE_SECRET || "some-secret-password",
+});
+
+app.use(adminJs.options.rootPath, adminRouter);
 
 // --------------------------
 // Static stations table
