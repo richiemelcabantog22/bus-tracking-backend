@@ -180,16 +180,30 @@ async function seedDefaults() {
 // AdminJS Setup (v7 + @adminjs/mongoose v4)
 // --------------------------
 AdminJS.registerAdapter({ Database, Resource });
+//--------------------------------------
 
-// --------------------------
-// AdminJS Setup
-// --------------------------
+// --------------------------------------------
+// AdminJS Setup (v7) -- FIXED VERSION
+// --------------------------------------------
+import { ComponentLoader } from "adminjs";
+
+// Register adapter
 AdminJS.registerAdapter({ Database, Resource });
 
+// Component loader (v7 requirement)
+const componentLoader = new ComponentLoader();
+
+// Register custom dashboard
+const Components = {
+  Dashboard: componentLoader.add("Dashboard", "./admin-dashboard.jsx"),
+};
+
+// AdminJS Instance
 const adminJs = new AdminJS({
   databases: [mongoose],
   rootPath: "/admin",
-  branding: { 
+  componentLoader,  // IMPORTANT!!!
+  branding: {
     companyName: "TransTrack Admin",
     logo: false,
     favicon: false,
@@ -202,7 +216,11 @@ const adminJs = new AdminJS({
       const incidentCount = await Incident.countDocuments();
       const usersCount = await User.countDocuments();
 
-      const activeIncidents = await Incident.find().sort({ createdAt: -1 }).limit(5).lean();
+      const activeIncidents = await Incident.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
+
       const buses = await Bus.find().limit(5).lean();
 
       return {
@@ -215,18 +233,10 @@ const adminJs = new AdminJS({
       };
     },
 
-    component: AdminJS.bundle("./admin-dashboard.jsx"),
+    component: Components.Dashboard, // <--- FIXED
   },
 });
 
-// ---------------------------------------------
-// DEV-ONLY RELOAD / BUNDLE (must be AFTER adminJs)
-// ---------------------------------------------
-if (process.env.NODE_ENV !== "production") {
-  adminJs.watch();
-}
-
-adminJs.bundle("./admin-dashboard.jsx", "admin-dashboard.jsx");
 
 
 // Build router from @adminjs/express (this returns an express.Router)

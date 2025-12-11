@@ -1,15 +1,25 @@
 import React from "react";
-import { Box, H1, Text, Table, TableRow, TableCell } from "@adminjs/design-system";
+import {
+  Box,
+  H1,
+  Text,
+  Table,
+  TableRow,
+  TableCell,
+} from "@adminjs/design-system";
 
-const Dashboard = (props) => {
-  const { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses } = props;
-
+const Dashboard = ({ busCount, driverCount, incidentCount, usersCount, activeIncidents, buses }) => {
   return (
-    <Box variant="grey">
+    <Box variant="grey" padding="20px">
       <H1>TransTrack Admin Dashboard</H1>
 
       {/* KPI CARDS */}
-      <Box flex flexDirection="row" marginTop="20px" gridGap="20px">
+      <Box
+        display="flex"
+        flexDirection="row"
+        marginTop="20px"
+        style={{ gap: "20px" }}
+      >
         <KpiCard label="Total Buses" value={busCount} />
         <KpiCard label="Total Drivers" value={driverCount} />
         <KpiCard label="Active Incidents" value={incidentCount} />
@@ -17,7 +27,7 @@ const Dashboard = (props) => {
       </Box>
 
       {/* RECENT INCIDENTS */}
-      <Box variant="white" marginTop="30px" padding="20px">
+      <Box variant="white" marginTop="30px" padding="20px" boxShadow="card">
         <H1 fontSize="20px">Recent Incidents</H1>
         <Table>
           {activeIncidents?.map((i) => (
@@ -31,8 +41,8 @@ const Dashboard = (props) => {
         </Table>
       </Box>
 
-      {/* TOP 5 BUSES */}
-      <Box variant="white" marginTop="30px" padding="20px">
+      {/* BUS SAMPLE DATA */}
+      <Box variant="white" marginTop="30px" padding="20px" boxShadow="card">
         <H1 fontSize="20px">Sample Buses Data</H1>
         <Table>
           {buses?.map((b) => (
@@ -40,7 +50,9 @@ const Dashboard = (props) => {
               <TableCell>{b.id}</TableCell>
               <TableCell>{b.passengers}</TableCell>
               <TableCell>{b.targetStation || "N/A"}</TableCell>
-              <TableCell>{b.lat.toFixed(4)}, {b.lng.toFixed(4)}</TableCell>
+              <TableCell>
+                {b.lat.toFixed(4)}, {b.lng.toFixed(4)}
+              </TableCell>
             </TableRow>
           ))}
         </Table>
@@ -53,10 +65,19 @@ const KpiCard = ({ label, value }) => (
   <Box
     variant="white"
     padding="20px"
-    style={{ width: "200px", borderRadius: "10px", textAlign: "center" }}
+    style={{
+      width: "200px",
+      borderRadius: "12px",
+      textAlign: "center",
+      boxShadow: "var(--box-shadow-card)",
+    }}
   >
-    <Text fontSize="18px" fontWeight="bold">{value}</Text>
-    <Text fontSize="14px" color="#555">{label}</Text>
+    <Text fontSize="22px" fontWeight="bold">
+      {value}
+    </Text>
+    <Text fontSize="14px" color="#555">
+      {label}
+    </Text>
   </Box>
 );
 
