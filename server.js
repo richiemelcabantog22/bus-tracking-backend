@@ -16,6 +16,15 @@ import { Database, Resource } from "@adminjs/mongoose";
 import dotenv from "dotenv";
 dotenv.config();
 
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+adminJs.watch();
+adminJs.bundle("./admin-dashboard.jsx", "admin-dashboard.jsx");
+
+
 // --------------------------
 // ENV
 // --------------------------
@@ -176,7 +185,34 @@ AdminJS.registerAdapter({ Database, Resource });
 const adminJs = new AdminJS({
   databases: [mongoose],
   rootPath: "/admin",
-  branding: { companyName: "TransTrack Admin" },
+  branding: { 
+    companyName: "TransTrack Admin",
+    logo: false,
+    favicon: false,
+  },
+
+  dashboard: {
+    handler: async () => {
+      const busCount = await Bus.countDocuments();
+      const driverCount = await Driver.countDocuments();
+      const incidentCount = await Incident.countDocuments();
+      const usersCount = await User.countDocuments();
+
+      const activeIncidents = await Incident.find().sort({ createdAt: -1 }).limit(5).lean();
+      const buses = await Bus.find().limit(5).lean();
+
+      return {
+        busCount,
+        driverCount,
+        incidentCount,
+        usersCount,
+        activeIncidents,
+        buses,
+      };
+    },
+
+    component: AdminJS.bundle("./admin-dashboard.jsx"),
+  },
 });
 
 // Build router from @adminjs/express (this returns an express.Router)
