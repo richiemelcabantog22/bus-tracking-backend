@@ -14,6 +14,7 @@ const https = require("https");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { forestExpress } = require('forest-express-mongoose');
 // --------------------------
 // ENV
 // --------------------------
@@ -29,6 +30,13 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use(
+  forestExpress({
+    envSecret: process.env.FOREST_ENV_SECRET,  // Set this in Render environment variables
+    authSecret: process.env.FOREST_AUTH_SECRET, // Set this in Render environment variables
+    mongoose,
+  })
+);
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
