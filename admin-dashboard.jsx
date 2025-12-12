@@ -1,84 +1,44 @@
 import React from "react";
-import {
-  Box,
-  H1,
-  Text,
-  Table,
-  TableRow,
-  TableCell,
-} from "@adminjs/design-system";
 
 const Dashboard = ({ busCount, driverCount, incidentCount, usersCount, activeIncidents, buses }) => {
   return (
-    <Box variant="grey" padding="20px">
-      <H1>TransTrack Admin Dashboard</H1>
+    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+      <h1>TransTrack Admin Dashboard</h1>
 
-      {/* KPI CARDS */}
-      <Box
-        display="flex"
-        flexDirection="row"
-        marginTop="20px"
-        style={{ gap: "20px" }}
-      >
-        <KpiCard label="Total Buses" value={busCount} />
-        <KpiCard label="Total Drivers" value={driverCount} />
-        <KpiCard label="Active Incidents" value={incidentCount} />
-        <KpiCard label="Registered Users" value={usersCount} />
-      </Box>
+      <div style={{ display: "flex", gap: "20px", marginBottom: "30px" }}>
+        <div style={{ padding: "10px", border: "1px solid #ccc" }}>Buses: {busCount}</div>
+        <div style={{ padding: "10px", border: "1px solid #ccc" }}>Drivers: {driverCount}</div>
+        <div style={{ padding: "10px", border: "1px solid #ccc" }}>Users: {usersCount}</div>
+        <div style={{ padding: "10px", border: "1px solid #ccc" }}>Incidents: {incidentCount}</div>
+      </div>
 
-      {/* RECENT INCIDENTS */}
-      <Box variant="white" marginTop="30px" padding="20px" boxShadow="card">
-        <H1 fontSize="20px">Recent Incidents</H1>
-        <Table>
-          {activeIncidents?.map((i) => (
-            <TableRow key={i._id}>
-              <TableCell>{i.busId}</TableCell>
-              <TableCell>{i.category}</TableCell>
-              <TableCell>{i.details}</TableCell>
-              <TableCell>{new Date(i.createdAt).toLocaleString()}</TableCell>
-            </TableRow>
+      <h2>Recent Incidents</h2>
+      {activeIncidents && activeIncidents.length ? (
+        <ul>
+          {activeIncidents.map((i) => (
+            <li key={i._id}>
+              {i.category} on bus {i.busId} at {i.timestamp ? new Date(i.timestamp).toLocaleString() : "N/A"}
+            </li>
           ))}
-        </Table>
-      </Box>
+        </ul>
+      ) : (
+        <p>No incidents recorded.</p>
+      )}
 
-      {/* BUS SAMPLE DATA */}
-      <Box variant="white" marginTop="30px" padding="20px" boxShadow="card">
-        <H1 fontSize="20px">Sample Buses Data</H1>
-        <Table>
-          {buses?.map((b) => (
-            <TableRow key={b._id}>
-              <TableCell>{b.id}</TableCell>
-              <TableCell>{b.passengers}</TableCell>
-              <TableCell>{b.targetStation || "N/A"}</TableCell>
-              <TableCell>
-                {b.lat.toFixed(4)}, {b.lng.toFixed(4)}
-              </TableCell>
-            </TableRow>
+      <h2>Latest Buses</h2>
+      {buses && buses.length ? (
+        <ul>
+          {buses.map((b) => (
+            <li key={b._id}>
+              {b.id}: {b.passengers} passengers
+            </li>
           ))}
-        </Table>
-      </Box>
-    </Box>
+        </ul>
+      ) : (
+        <p>No buses recorded.</p>
+      )}
+    </div>
   );
 };
-
-const KpiCard = ({ label, value }) => (
-  <Box
-    variant="white"
-    padding="20px"
-    style={{
-      width: "200px",
-      borderRadius: "12px",
-      textAlign: "center",
-      boxShadow: "var(--box-shadow-card)",
-    }}
-  >
-    <Text fontSize="22px" fontWeight="bold">
-      {value}
-    </Text>
-    <Text fontSize="14px" color="#555">
-      {label}
-    </Text>
-  </Box>
-);
 
 export default Dashboard;

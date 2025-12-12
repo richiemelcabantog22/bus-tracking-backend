@@ -149,17 +149,38 @@ const adminJs = new AdminJS({
 
   dashboard: {
   handler: async () => {
+    // Fetch counts
     const busCount = await Bus.countDocuments();
     const driverCount = await Driver.countDocuments();
     const incidentCount = await Incident.countDocuments();
     const usersCount = await User.countDocuments();
-    const activeIncidents = await Incident.find().sort({ createdAt: -1 }).limit(5).lean();
-    const buses = await Bus.find().limit(5).lean();
 
-    return { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses };
+    // Fetch latest 5 incidents and buses
+    const activeIncidents = await Incident.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    const buses = await Bus.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+
+    // DEBUG: log to server console
+    console.log("Dashboard data:", { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses });
+
+    return {
+      busCount,
+      driverCount,
+      incidentCount,
+      usersCount,
+      activeIncidents,
+      buses,
+    };
   },
+
   component: Components.Dashboard,
-}
+},
 });
 
 
