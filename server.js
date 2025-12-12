@@ -148,31 +148,18 @@ const adminJs = new AdminJS({
   },
 
   dashboard: {
-    handler: async () => {
-      const busCount = await Bus.countDocuments();
-      const driverCount = await Driver.countDocuments();
-      const incidentCount = await Incident.countDocuments();
-      const usersCount = await User.countDocuments();
+  handler: async () => {
+    const busCount = await Bus.countDocuments();
+    const driverCount = await Driver.countDocuments();
+    const incidentCount = await Incident.countDocuments();
+    const usersCount = await User.countDocuments();
+    const activeIncidents = await Incident.find().sort({ createdAt: -1 }).limit(5).lean();
+    const buses = await Bus.find().limit(5).lean();
 
-      const activeIncidents = await Incident.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .lean();
-
-      const buses = await Bus.find().limit(5).lean();
-
-      return {
-        busCount,
-        driverCount,
-        incidentCount,
-        usersCount,
-        activeIncidents,
-        buses,
-      };
-    },
-
-    component: Components.Dashboard, // <--- FIXED
+    return { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses };
   },
+  component: Components.Dashboard,
+}
 });
 
 
