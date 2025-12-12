@@ -13,23 +13,25 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-  "@adminjs/express": "^6.1.1",
-  "@adminjs/mongoose": "^4.1.0",
-  "@adminjs/design-system": "^4.1.1",
-  "adminjs": "^7.8.17",
-  "bcryptjs": "^2.4.3",
-  "cors": "^2.8.5",
-  "dotenv": "^16.0.0",
-  "express": "^4.19.2",
-  "jsonwebtoken": "^9.0.2",
-  "mongoose": "^8.6.0",
-  "react": "^18.2.0",
-  "react-dom": "^18.2.0",
-  "socket.io": "^4.7.5"
-},
-"devDependencies": {
-  "nodemon": "^3.0.2"
-},
+    "@adminjs/design-system": "^4.1.1",
+    "@adminjs/express": "^6.1.1",
+    "@adminjs/mongoose": "^4.1.0",
+    "adminjs": "^7.8.17",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "leaflet": "^1.9.4",
+    "mongoose": "^8.6.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-leaflet": "^4.2.1",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/richiemelcabantog22/bus-tracking-backend.git"
