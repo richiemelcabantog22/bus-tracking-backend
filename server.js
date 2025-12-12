@@ -132,10 +132,6 @@ const UserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Bus = mongoose.model("Bus", BusSchema);
-const Driver = mongoose.model("Driver", DriverSchema);
-const Incident = mongoose.model("Incident", IncidentSchema);
-const User = mongoose.model("User", UserSchema);
 
 // --------------------------
 // Seed defaults (DEV)
