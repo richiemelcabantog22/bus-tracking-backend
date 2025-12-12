@@ -15,8 +15,8 @@ import AdminJSExpress from "@adminjs/express";
 import { Database, Resource } from "@adminjs/mongoose";
 import Bus from "./models/Bus.js";
 import Driver from "./models/Driver.js";
-import Incident from "./models/Incident.js";
 import User from "./models/User.js";
+import Incident from "./models/Incident.js";
 import dotenv from "dotenv";
 dotenv.config();
 

@@ -12,4 +12,5 @@ const IncidentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const Incident = mongoose.models.Incident || mongoose.model("Incident", IncidentSchema);
+const Incident = mongoose.models.Incident || mongoose.model("Incident", IncidentSchema);
+export default Incident;
