@@ -206,21 +206,43 @@ const Components = {
 // AdminJS Instance
 const adminJs = new AdminJS({
   resources: [Bus, Driver, User, Incident],
+  databases: [mongoose],
+  rootPath: "/admin",
+  componentLoader,  // IMPORTANT!!!
+  branding: {
+    companyName: "TransTrack Admin",
+    logo: false,
+    favicon: false,
+  },
+
   dashboard: {
-    component: AdminJS.bundle("./admin-dashboard.jsx"), // your dashboard component
     handler: async () => {
-      // Fetch data from MongoDB
       const busCount = await Bus.countDocuments();
       const driverCount = await Driver.countDocuments();
       const incidentCount = await Incident.countDocuments();
       const usersCount = await User.countDocuments();
-      const activeIncidents = await Incident.find().sort({ createdAt: -1 }).limit(5);
-      const buses = await Bus.find().limit(5);
 
-      return { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses };
+      const activeIncidents = await Incident.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
+
+      const buses = await Bus.find().limit(5).lean();
+
+      return {
+        busCount,
+        driverCount,
+        incidentCount,
+        usersCount,
+        activeIncidents,
+        buses,
+      };
     },
+
+    component: Components.Dashboard, // <--- FIXED
   },
 });
+
 
 
 // Build router from @adminjs/express (this returns an express.Router)
