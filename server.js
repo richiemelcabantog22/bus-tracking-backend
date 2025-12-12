@@ -158,7 +158,7 @@ const componentLoader = new ComponentLoader();
 const Components = {
   Dashboard: componentLoader.add(
     "Dashboard",
-    path.join(__dirname, "admin-dashboard.jsx")
+    "./admin-components/Dashboard" // relative path, no __dirname
   ),
 };
 
@@ -178,25 +178,36 @@ const adminJs = new AdminJS({
   dashboard: {
   handler: async () => {
     try {
-      // MOCK DATA
-      const busCount = 7;
-      const driverCount = 7;
-      const incidentCount = 3;
-      const usersCount = 12;
+      // Count documents
+      const busCount = await Bus.countDocuments();
+      const driverCount = await Driver.countDocuments();
+      const incidentCount = await Incident.countDocuments();
+      const usersCount = await User.countDocuments();
 
-      const activeIncidents = [
-        { _id: "1", busId: "BUS-001", category: "Delay", details: "Heavy traffic", createdAt: new Date() },
-        { _id: "2", busId: "BUS-004", category: "Accident", details: "Minor collision", createdAt: new Date() },
-        { _id: "3", busId: "BUS-007", category: "Overcrowding", details: "Too many passengers", createdAt: new Date() },
-      ];
+      // Fetch latest 5 incidents
+      const activeIncidents = await Incident.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
 
-      const buses = [
-        { _id: "b1", id: "BUS-001", passengers: 15, targetStation: "VTX - Vista Terminal", lat: 14.4096, lng: 121.039 },
-        { _id: "b2", id: "BUS-002", passengers: 20, targetStation: "HM Bus Terminal - Laguna", lat: 14.4156, lng: 121.0462 },
-        { _id: "b3", id: "BUS-003", passengers: 35, targetStation: "HM BUS Terminal - Calamba", lat: 14.4156, lng: 121.0462 },
-      ];
+      // Fetch latest 5 buses
+      const buses = await Bus.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
 
-      return { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses };
+      // DEBUG: log to console to verify data
+      console.log("Dashboard handler data:", { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses });
+
+      // Return in the shape expected by Dashboard.jsx
+      return {
+        busCount,
+        driverCount,
+        incidentCount,
+        usersCount,
+        activeIncidents,
+        buses,
+      };
     } catch (error) {
       console.error("Dashboard handler error:", error);
       return {
