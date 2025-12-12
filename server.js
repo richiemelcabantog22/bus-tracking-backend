@@ -13,8 +13,13 @@ import jwt from "jsonwebtoken";
 import AdminJS from "adminjs";
 import AdminJSExpress from "@adminjs/express";
 import { Database, Resource } from "@adminjs/mongoose";
+import './models/Bus.js';
+import './models/Driver.js';
+import './models/User.js';
+import './models/Incident.js';
 import dotenv from "dotenv";
 dotenv.config();
+
 
 import path from "path";
 import { fileURLToPath } from "url";
