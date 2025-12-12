@@ -72,6 +72,7 @@ async function connectAndSeed() {
 // --------------------------
 async function seedDefaults() {
   try {
+    // --------- Drivers ---------
     const countDrivers = await Driver.countDocuments();
     if (countDrivers === 0) {
       const defaults = [
@@ -92,6 +93,7 @@ async function seedDefaults() {
       }
     }
 
+    // --------- Buses ---------
     const countBuses = await Bus.countDocuments();
     if (countBuses === 0) {
       const seedBuses = [
@@ -106,10 +108,36 @@ async function seedDefaults() {
       await Bus.insertMany(seedBuses);
       console.log("Seeded buses collection (DEV)");
     }
+
+    // --------- Users ---------
+    const countUsers = await User.countDocuments();
+    if (countUsers === 0) {
+      const seedUsers = [
+        { name: "Alice", email: "alice@example.com", passwordHash: await bcrypt.hash("password", 10) },
+        { name: "Bob", email: "bob@example.com", passwordHash: await bcrypt.hash("password", 10) },
+        { name: "Charlie", email: "charlie@example.com", passwordHash: await bcrypt.hash("password", 10) },
+      ];
+      await User.insertMany(seedUsers);
+      console.log("Seeded users collection (DEV)");
+    }
+
+    // --------- Incidents ---------
+    const countIncidents = await Incident.countDocuments();
+    if (countIncidents === 0) {
+      const seedIncidents = [
+        { busId: "BUS-001", category: "accident", details: "Minor collision", lat: 14.4096, lng: 121.039 },
+        { busId: "BUS-003", category: "traffic", details: "Heavy congestion", lat: 14.415655, lng: 121.04618 },
+      ];
+      await Incident.insertMany(seedIncidents);
+      console.log("Seeded incidents collection (DEV)");
+    }
   } catch (e) {
     console.error("seedDefaults error:", e);
   }
 }
+
+
+
 
 // --------------------------
 // AdminJS Setup (v7 + @adminjs/mongoose v4)

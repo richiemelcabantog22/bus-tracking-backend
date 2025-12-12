@@ -9,7 +9,7 @@ const IncidentSchema = new mongoose.Schema(
     lng: Number,
     timestamp: { type: Date, default: Date.now },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "incidents" }
 );
 
 const Incident = mongoose.models.Incident || mongoose.model("Incident", IncidentSchema);

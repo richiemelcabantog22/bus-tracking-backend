@@ -26,7 +26,7 @@ const BusSchema = new mongoose.Schema(
     crowdFlow: String,
     crowdExplanation: String,
   },
-  { timestamps: true }
+  { timestamps: true, collection: "buses" } // ← explicit collection name
 );
 
 const Bus = mongoose.models.Bus || mongoose.model("Bus", BusSchema);
