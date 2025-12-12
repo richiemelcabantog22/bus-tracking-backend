@@ -26,7 +26,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
+const adminRouter = AdminJSExpress.buildRouter(adminJs);
 
 
 // --------------------------
@@ -44,6 +44,7 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use(adminJs.options.rootPath, adminRouter);
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
