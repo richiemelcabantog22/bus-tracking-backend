@@ -521,7 +521,7 @@ function computeHeadways(arr) {
 
 async function buildEnriched() {
   const buses = await Bus.find({}).lean();
-
+  console.log("DEBUG: buses from DB:", buses); 
   const enriched = buses.map((b) => {
     detectStation(b);
     if (!b._historyRecords) b._historyRecords = [];
