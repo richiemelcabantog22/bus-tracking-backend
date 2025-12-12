@@ -154,15 +154,6 @@ import { ComponentLoader } from "adminjs";
 // Component loader (v7 requirement)
 const componentLoader = new ComponentLoader();
 
-// Register custom dashboard
-const Components = {
-  Dashboard: componentLoader.add(
-    "Dashboard",
-    "./admin-components/Dashboard" // relative path, no __dirname
-  ),
-};
-
-
 // AdminJS Instance
 const Components = {
   Dashboard: componentLoader.add("Dashboard", "./admin-components/Dashboard"),
