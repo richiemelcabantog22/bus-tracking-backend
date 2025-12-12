@@ -26,7 +26,7 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const adminRouter = AdminJSExpress.buildRouter(adminJs);
+
 
 
 // --------------------------
@@ -44,7 +44,6 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "dev_admin_key";
 const app = express();
 app.use(express.json());
 app.use(cors());
-app.use(adminJs.options.rootPath, adminRouter);
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
@@ -66,72 +65,6 @@ async function connectAndSeed() {
 }
 
 // Schemas
-const BusSchema = new mongoose.Schema(
-  {
-    id: { type: String, unique: true, index: true },
-    lat: Number,
-    lng: Number,
-    passengers: Number,
-    targetStation: { type: String, default: null },
-    route: [{ lat: Number, lng: Number }],
-    etaSeconds: { type: Number, default: null },
-    etaText: { type: String, default: null },
-    isAtStation: { type: Boolean, default: false },
-    currentStation: { type: String, default: null },
-    _lastLat: Number,
-    _lastLng: Number,
-    _lastMoveTime: Number,
-    _speedLat: Number,
-    _speedLng: Number,
-    _speedTime: Number,
-    _speedHistory: [Number],
-    _history: [Number],
-    _historyRecords: [{ t: Number, p: Number }],
-    _lastHistoryValue: Number,
-    movement: String,
-    crowdFlow: String,
-    crowdExplanation: String,
-  },
-  { timestamps: true }
-);
-
-const DriverSchema = new mongoose.Schema(
-  {
-    busId: { type: String, unique: true, index: true },
-    pinHash: String,
-    capacity: { type: Number, default: 40 },
-    contactEmail: { type: String, default: null },
-    contactPhone: { type: String, default: null },
-    resetCode: { type: String, default: null },
-    resetExpires: { type: Date, default: null },
-  },
-  { timestamps: true }
-);
-
-const IncidentSchema = new mongoose.Schema(
-  {
-    busId: String,
-    category: String,
-    details: String,
-    lat: Number,
-    lng: Number,
-    timestamp: { type: Date, default: Date.now },
-  },
-  { timestamps: true }
-);
-
-const UserSchema = new mongoose.Schema(
-  {
-    name: { type: String, default: "" },
-    email: { type: String, unique: true, index: true },
-    passwordHash: String,
-    role: { type: String, default: "user" },
-    isOnboard: { type: Boolean, default: false },
-    currentBusId: { type: String, default: null },
-    boardedAt: { type: Date, default: null },
-  },
-  { timestamps: true }
-);
 
 
 // --------------------------
@@ -189,8 +122,6 @@ AdminJS.registerAdapter({ Database, Resource });
 // --------------------------------------------
 import { ComponentLoader } from "adminjs";
 
-// Register adapter
-AdminJS.registerAdapter({ Database, Resource });
 
 // Component loader (v7 requirement)
 const componentLoader = new ComponentLoader();
