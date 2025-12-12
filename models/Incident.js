@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const IncidentSchema = new mongoose.Schema(
   {
     busId: String,
-    category: { type: String, default: "General" },
+    category: String,
     details: String,
     lat: Number,
     lng: Number,
@@ -12,4 +12,4 @@ const IncidentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const Incident = mongoose.model("Incident", IncidentSchema);
+export const Incident = mongoose.models.Incident || mongoose.model("Incident", IncidentSchema);
