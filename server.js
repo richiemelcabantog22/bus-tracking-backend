@@ -177,36 +177,49 @@ const adminJs = new AdminJS({
 
   dashboard: {
   handler: async () => {
-    // Fetch counts
-    const busCount = await Bus.countDocuments();
-    const driverCount = await Driver.countDocuments();
-    const incidentCount = await Incident.countDocuments();
-    const usersCount = await User.countDocuments();
+    try {
+      // Count documents
+      const busCount = await Bus.countDocuments();
+      const driverCount = await Driver.countDocuments();
+      const incidentCount = await Incident.countDocuments();
+      const usersCount = await User.countDocuments();
 
-    // Fetch latest 5 incidents and buses
-    const activeIncidents = await Incident.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
+      // Fetch latest 5 incidents
+      const activeIncidents = await Incident.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
 
-    const buses = await Bus.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
+      // Fetch latest 5 buses
+      const buses = await Bus.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
 
-    // DEBUG: log to server console
-    console.log("Dashboard data:", { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses });
+      // DEBUG: log to console to verify data
+      console.log("Dashboard handler data:", { busCount, driverCount, incidentCount, usersCount, activeIncidents, buses });
 
-    return {
-      busCount,
-      driverCount,
-      incidentCount,
-      usersCount,
-      activeIncidents,
-      buses,
-    };
+      // Return in the shape expected by Dashboard.jsx
+      return {
+        busCount,
+        driverCount,
+        incidentCount,
+        usersCount,
+        activeIncidents,
+        buses,
+      };
+    } catch (error) {
+      console.error("Dashboard handler error:", error);
+      return {
+        busCount: 0,
+        driverCount: 0,
+        incidentCount: 0,
+        usersCount: 0,
+        activeIncidents: [],
+        buses: [],
+      };
+    }
   },
-
   component: Components.Dashboard,
 },
 });

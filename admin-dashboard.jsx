@@ -1,54 +1,37 @@
 import React from "react";
-import {
-  Box,
-  H1,
-  Text,
-  Table,
-  TableRow,
-  TableCell,
-} from "@adminjs/design-system";
+import { Box, H1, Text, Table, TableRow, TableCell } from "@adminjs/design-system";
 
-const Dashboard = ({ busCount, driverCount, incidentCount, usersCount, activeIncidents, buses }) => {
+const Dashboard = (props) => {
+  // AdminJS v7 passes the handler return as props.data
+  const {
+    busCount = 0,
+    driverCount = 0,
+    incidentCount = 0,
+    usersCount = 0,
+    activeIncidents = [],
+    buses = [],
+  } = props?.data || {};
+
+  console.log("DEBUG: Dashboard data", props?.data); // For debugging
+
   return (
-    <Box padding="30px" variant="grey">
+    <Box variant="grey" padding="20px">
       <H1>TransTrack Admin Dashboard</H1>
 
       {/* KPI CARDS */}
-      <Box
-        display="flex"
-        flexWrap="wrap"
-        marginTop="25px"
-        style={{ gap: "20px" }}
-      >
-        <KpiCard label="Total Buses" value={busCount} color="#4CAF50" />
-        <KpiCard label="Total Drivers" value={driverCount} color="#2196F3" />
-        <KpiCard label="Active Incidents" value={incidentCount} color="#FF9800" />
-        <KpiCard label="Registered Users" value={usersCount} color="#9C27B0" />
+      <Box display="flex" flexDirection="row" marginTop="20px" style={{ gap: "20px" }}>
+        <KpiCard label="Total Buses" value={busCount} />
+        <KpiCard label="Total Drivers" value={driverCount} />
+        <KpiCard label="Active Incidents" value={incidentCount} />
+        <KpiCard label="Registered Users" value={usersCount} />
       </Box>
 
       {/* RECENT INCIDENTS */}
-      <Box
-        variant="white"
-        marginTop="40px"
-        padding="20px"
-        boxShadow="card"
-        borderRadius="12px"
-      >
-        <H1 fontSize="20px" marginBottom="15px">
-          Recent Incidents
-        </H1>
+      <Box variant="white" marginTop="30px" padding="20px" boxShadow="card">
+        <H1 fontSize="20px">Recent Incidents</H1>
         <Table>
-          <TableRow style={{ fontWeight: "bold", background: "#f0f0f0" }}>
-            <TableCell>Bus ID</TableCell>
-            <TableCell>Category</TableCell>
-            <TableCell>Details</TableCell>
-            <TableCell>Timestamp</TableCell>
-          </TableRow>
-          {activeIncidents?.map((i, idx) => (
-            <TableRow
-              key={i._id}
-              style={{ background: idx % 2 === 0 ? "#fff" : "#fafafa" }}
-            >
+          {activeIncidents.map((i) => (
+            <TableRow key={i._id}>
               <TableCell>{i.busId}</TableCell>
               <TableCell>{i.category}</TableCell>
               <TableCell>{i.details}</TableCell>
@@ -59,35 +42,16 @@ const Dashboard = ({ busCount, driverCount, incidentCount, usersCount, activeInc
       </Box>
 
       {/* BUS SAMPLE DATA */}
-      <Box
-        variant="white"
-        marginTop="40px"
-        padding="20px"
-        boxShadow="card"
-        borderRadius="12px"
-      >
-        <H1 fontSize="20px" marginBottom="15px">
-          Buses Overview
-        </H1>
+      <Box variant="white" marginTop="30px" padding="20px" boxShadow="card">
+        <H1 fontSize="20px">Sample Buses Data</H1>
         <Table>
-          <TableRow style={{ fontWeight: "bold", background: "#f0f0f0" }}>
-            <TableCell>Bus ID</TableCell>
-            <TableCell>Passengers</TableCell>
-            <TableCell>Target Station</TableCell>
-            <TableCell>Location</TableCell>
-          </TableRow>
-          {buses?.map((b, idx) => (
-            <TableRow
-              key={b._id}
-              style={{ background: idx % 2 === 0 ? "#fff" : "#fafafa" }}
-            >
+          {buses.map((b) => (
+            <TableRow key={b._id}>
               <TableCell>{b.id}</TableCell>
-              <TableCell>{b.passengers != null ? b.passengers : "N/A"}</TableCell>
+              <TableCell>{b.passengers}</TableCell>
               <TableCell>{b.targetStation || "N/A"}</TableCell>
               <TableCell>
-                {b.lat != null && b.lng != null
-                  ? `${b.lat.toFixed(4)}, ${b.lng.toFixed(4)}`
-                  : "N/A"}
+                {b.lat?.toFixed(4) || "N/A"}, {b.lng?.toFixed(4) || "N/A"}
               </TableCell>
             </TableRow>
           ))}
@@ -97,19 +61,18 @@ const Dashboard = ({ busCount, driverCount, incidentCount, usersCount, activeInc
   );
 };
 
-const KpiCard = ({ label, value, color }) => (
+const KpiCard = ({ label, value }) => (
   <Box
     variant="white"
     padding="20px"
     style={{
-      flex: "1 1 200px",
+      width: "200px",
       borderRadius: "12px",
       textAlign: "center",
       boxShadow: "var(--box-shadow-card)",
-      borderLeft: `5px solid ${color || "#000"}`,
     }}
   >
-    <Text fontSize="24px" fontWeight="bold">
+    <Text fontSize="22px" fontWeight="bold">
       {value}
     </Text>
     <Text fontSize="14px" color="#555">
