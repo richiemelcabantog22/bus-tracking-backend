@@ -172,7 +172,7 @@ const adminJs = new AdminJS({
 const adminBaseRouter = AdminJSExpress.buildRouter(adminJs);
 
 // Lightweight sessionless protection middleware for Admin UI
-fconst adminRouter = AdminJSExpress.buildAuthenticatedRouter(adminJs, {
+const adminRouter = AdminJSExpress.buildAuthenticatedRouter(adminJs, {
   authenticate: async (email, password) => {
     if (email === "admin" && password === ADMIN_KEY) {
       return { email: "admin" };
@@ -185,7 +185,7 @@ fconst adminRouter = AdminJSExpress.buildAuthenticatedRouter(adminJs, {
 
 // Mount admin UI behind adminAuthMiddleware
 app.use(adminJs.options.rootPath, adminRouter, adminBaseRouter);
-
+	
 // --------------------------
 // Static stations table
 // --------------------------
