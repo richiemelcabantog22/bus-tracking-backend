@@ -172,17 +172,19 @@ const adminJs = new AdminJS({
 const adminBaseRouter = AdminJSExpress.buildRouter(adminJs);
 
 // Lightweight sessionless protection middleware for Admin UI
-function adminAuthMiddleware(req, res, next) {
-  // Allow disabling protection for dev
-  if (!REQUIRE_AUTH) return next();
-  const key = req.headers["x-admin-key"] || req.query.admin_key || req.cookies?.admin_key;
-  if (key && key === ADMIN_KEY) return next();
-  // For UI assets or initial page requests, respond with 401 so user can't access Admin UI
-  res.status(401).send("Unauthorized - missing or invalid admin key");
-}
+fconst adminRouter = AdminJSExpress.buildAuthenticatedRouter(adminJs, {
+  authenticate: async (email, password) => {
+    if (email === "admin" && password === ADMIN_KEY) {
+      return { email: "admin" };
+    }
+    return null;
+  },
+  cookieName: "adminjs",
+  cookiePassword: process.env.ADMIN_COOKIE_SECRET || "some-secret-password",
+});
 
 // Mount admin UI behind adminAuthMiddleware
-app.use(adminJs.options.rootPath, adminAuthMiddleware, adminBaseRouter);
+app.use(adminJs.options.rootPath, adminRouter, adminBaseRouter);
 
 // --------------------------
 // Static stations table
